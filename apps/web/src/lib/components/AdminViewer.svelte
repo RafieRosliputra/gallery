@@ -1,11 +1,15 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { pushState } from '$app/navigation';
+  import { page } from '$app/state';
   import type { Asset } from '$lib/api/models';
   import { api } from '$lib/api/client';
+  import { formatClock, formatDayLabel } from '$lib/format';
   import Icon from './Icon.svelte';
+  import PhotoStage from './PhotoStage.svelte';
 
-  // Admin lightbox: preview 1600px, prev/next across the list it was opened from,
-  // keyboard ← → Esc, and a link to the original (admin session may always download).
+  // Admin lightbox in the Google Photos style: zooms out of the tile, swipe/drag or
+  // ← → to move, swipe down / Esc / browser Back to close, chrome hides when idle.
   let { items, id, onclose, onchange }: {
     items: Asset[];
     id: string;
@@ -15,48 +19,82 @@
 
   const index = $derived(items.findIndex((item) => item.id === id));
   const current = $derived(index >= 0 ? items[index] : undefined);
-  const prev = $derived(index > 0 ? items[index - 1] : undefined);
-  const next = $derived(index >= 0 && index < items.length - 1 ? items[index + 1] : undefined);
-  let closeButton: HTMLButtonElement | undefined = $state();
+  let chrome = $state(true);
+  let pushed = $state(false);
+  let idle: number | undefined;
 
-  function onkey(event: KeyboardEvent) {
-    if (event.key === 'Escape') onclose();
-    else if (event.key === 'ArrowLeft' && prev) onchange(prev.id);
-    else if (event.key === 'ArrowRight' && next) onchange(next.id);
+  function wake(): void {
+    chrome = true;
+    window.clearTimeout(idle);
+    idle = window.setTimeout(() => (chrome = false), 2500);
   }
 
-  onMount(() => closeButton?.focus());
+  function toggleChrome(): void {
+    if (chrome) {
+      window.clearTimeout(idle);
+      chrome = false;
+    } else {
+      wake();
+    }
+  }
+
+  function close(): void {
+    if (page.state.adminViewer) history.back();
+    else onclose();
+  }
+
+  function step(delta: number): void {
+    const next = items[index + delta];
+    if (next) onchange(next.id);
+  }
+
+  onMount(() => {
+    pushState('', { adminViewer: true });
+    pushed = true;
+    const overflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    wake();
+    return () => {
+      window.clearTimeout(idle);
+      document.body.style.overflow = overflow;
+    };
+  });
+
+  // Browser Back (or close()) popped our history entry → close the viewer.
+  $effect(() => {
+    if (pushed && !page.state.adminViewer) onclose();
+  });
+
+  function onkey(event: KeyboardEvent): void {
+    if (event.key === 'Escape') close();
+  }
 </script>
 
-<svelte:window onkeydown={onkey} />
+<svelte:window onkeydown={onkey} onmousemove={wake} />
 
 {#if current}
   <div class="backdrop" role="dialog" aria-modal="true" aria-label="Lihat gambar">
-    <div class="bar">
-      <span class="count">{index + 1} / {items.length}</span>
-      <div class="actions">
-        <a class="action" href={api.originalUrl(current.id)} download aria-label="Download fail asal">
-          <Icon name="download" size={22} />
-        </a>
-        <button type="button" class="action" aria-label="Tutup" bind:this={closeButton} onclick={onclose}>
-          <Icon name="close" size={22} />
-        </button>
+    <PhotoStage
+      {items}
+      {index}
+      onstep={step}
+      onclose={close}
+      ontap={toggleChrome}
+      label={`Gambar ${index + 1} daripada ${items.length}`}
+    />
+    <div class="bar" class:hidden={!chrome}>
+      <button type="button" class="action" aria-label="Tutup" onclick={close}>
+        <Icon name="back" size={22} />
+      </button>
+      <div class="info">
+        {#if current.takenAt}
+          <span class="when">{formatDayLabel(current.takenAt)} · {formatClock(current.takenAt)}</span>
+        {/if}
+        <span class="meta count">{index + 1} / {items.length}{current.camera ? ` · ${current.camera}` : ''}</span>
       </div>
-    </div>
-    <div class="stage">
-      {#key current.id}
-        <img src={current.previewUrl} alt="" />
-      {/key}
-      {#if prev}
-        <button type="button" class="nav left" aria-label="Gambar sebelum" onclick={() => onchange(prev.id)}>
-          <Icon name="back" size={24} />
-        </button>
-      {/if}
-      {#if next}
-        <button type="button" class="nav right" aria-label="Gambar seterusnya" onclick={() => onchange(next.id)}>
-          <Icon name="back" size={24} />
-        </button>
-      {/if}
+      <a class="action" href={api.originalUrl(current.id)} download aria-label="Download fail asal">
+        <Icon name="download" size={22} />
+      </a>
     </div>
   </div>
 {/if}
@@ -66,74 +104,57 @@
     position: fixed;
     inset: 0;
     z-index: 50;
-    background: #000000;
-    color: #ffffff;
+    background: #000;
+    color: #fff;
     display: flex;
     flex-direction: column;
   }
   .bar {
+    position: absolute;
+    z-index: 2;
+    top: 0;
+    left: 0;
+    right: 0;
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    padding: 8px 12px;
+    gap: 8px;
+    padding: 8px 12px 28px;
+    background: linear-gradient(rgb(0 0 0 / 0.6), rgb(0 0 0 / 0));
+    transition: opacity 200ms ease-out;
   }
-  .count {
-    font-size: 14px;
-    color: #c3ccce;
+  .bar.hidden {
+    opacity: 0;
+    pointer-events: none;
   }
-  .actions {
+  .info {
+    flex: 1;
+    min-width: 0;
     display: flex;
-    gap: 4px;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .when {
+    font-size: 15px;
+    font-weight: 600;
+  }
+  .meta {
+    font-size: 13px;
+    color: #c3ccce;
   }
   .action {
     width: 48px;
     height: 48px;
+    flex: none;
     border: 0;
     border-radius: 24px;
     background: transparent;
-    color: #ffffff;
+    color: #fff;
     display: flex;
     align-items: center;
     justify-content: center;
     cursor: pointer;
   }
-  .action:hover,
-  .nav:hover {
-    background: rgba(255, 255, 255, 0.12);
-  }
-  .stage {
-    position: relative;
-    flex: 1;
-    min-height: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-  img {
-    max-width: 100%;
-    max-height: 100%;
-    object-fit: contain;
-  }
-  .nav {
-    position: absolute;
-    top: 50%;
-    width: 52px;
-    height: 52px;
-    margin-top: -26px;
-    border: 0;
-    border-radius: 26px;
-    background: rgba(17, 21, 23, 0.6);
-    color: #ffffff;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-  }
-  .nav.left {
-    left: 12px;
-  }
-  .nav.right {
-    right: 12px;
-    transform: scaleX(-1);
+  .action:hover {
+    background: rgb(255 255 255 / 0.12);
   }
 </style>
