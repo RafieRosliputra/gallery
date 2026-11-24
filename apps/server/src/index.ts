@@ -44,6 +44,7 @@ const app = buildApp({
   logger: { level: config.logLevel },
   trustProxy: config.trustProxy,
   dataDir: config.dataDir,
+  webDir: config.webDir,
   thumbBase: config.thumbBase,
   timezone: config.timezone,
   r2Enabled: config.r2Mode !== 'off',

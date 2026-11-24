@@ -156,7 +156,7 @@ export const handlers = [
   http.get(`${API}/asset/:id`, ({ params }) => {
     const asset = assetById(String(params.id));
     if (!asset) return json({ error: 'not_found', message: 'Gambar tak dijumpai.' }, 404);
-    return json({ asset, album: null });
+    return json({ asset, albumSlug: null });
   }),
 
   http.post(`${API}/zip`, () => {

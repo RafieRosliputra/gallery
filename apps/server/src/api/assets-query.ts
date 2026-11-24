@@ -28,9 +28,12 @@ export interface AssetPage {
   nextCursor: string | null;
 }
 
-export function encodeAssetCursor(row: { taken_at: Date | null; id: string }): string | null {
+export function encodeAssetCursor(row: { taken_at: Date | string | null; id: string }): string | null {
   if (!row.taken_at) return null;
-  return Buffer.from(JSON.stringify({ t: row.taken_at.toISOString(), i: row.id }), 'utf8').toString('base64url');
+  return Buffer.from(
+    JSON.stringify({ t: new Date(row.taken_at).toISOString(), i: row.id }),
+    'utf8',
+  ).toString('base64url');
 }
 
 export function decodeAssetCursor(raw: string): AssetCursor | null {

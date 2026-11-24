@@ -82,7 +82,7 @@
     if (loaded.has(id) || directAssets[id]) return;
     let cancelled = false;
     api
-      .getAsset(id)
+      .getAsset(id, album.slug)
       .then((response) => {
         if (!cancelled) directAssets = { ...directAssets, [id]: response.asset };
       })
@@ -116,7 +116,7 @@
     void Promise.all(
       missing.map(async (id) => {
         try {
-          return (await api.getAsset(id)).asset;
+          return (await api.getAsset(id, album.slug)).asset;
         } catch {
           return null;
         }

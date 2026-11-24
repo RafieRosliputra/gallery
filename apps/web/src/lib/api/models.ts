@@ -74,7 +74,7 @@ export interface BucketPageResponse {
 
 export interface AssetResponse {
   asset: Asset;
-  album: AlbumCard | null;
+  albumSlug: string | null;
 }
 
 // ---------------------------------------------------------------------------

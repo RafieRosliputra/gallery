@@ -4,6 +4,12 @@ All routes live under `/s`. JSON bodies; errors are `{ error, message }` with a
 Bahasa Melayu `message`. Bigint ids are JSON strings. This file is the contract
 for the web client (phase 1d is reconciled to it, not the other way round).
 
+The SvelteKit build (`WEB_DIR`, default `apps/web/build`) is served at `/s`:
+hashed `_app/immutable/*` files are `public, max-age=31536000, immutable`,
+`index.html` is `no-cache`, and every other unmatched `GET /s/*` returns
+`index.html` so the client router owns the URL. `/s/api/*`, `/s/t/*` and
+`/s/_r2/*` never fall back and return a real 404.
+
 ## Auth (cookie session)
 
 - `POST /s/api/auth/login` `{username,password}` → `{admin:{id,username}}`.
@@ -26,6 +32,7 @@ Every `/s/api/admin/*` route requires a live session. Sessions are rows in
 - `GET /s/api/client/:slug` → client portal; cards only, no asset list.
 - `GET /s/api/album/:slug?cam=` → album meta; no asset list.
 - `GET /s/api/bucket/:key?album=&cam=&cursor=&limit=` → one page of assets.
+- `GET /s/api/asset/:id?album=` → one asset for viewer deep links.
 - `GET /s/api/o/:assetId?album=` → original bytes (`inline`, `private, no-store`).
 - `POST /s/api/zip` `{albumSlug,ids?,cam?}` → streamed ZIP.
 - `GET /s/t/:derivKey/:size.webp` (`size` 300|1600) → derivative fallback.
@@ -170,6 +177,32 @@ Album card fields: `id`, `clientId`, `title`, `slug`, `allowDownload`, `count`
 - Asset fields are exactly the `asset` object above (`id`, `w`, `h`, `takenAt`,
   `camera`, `thumbhash`, `mime`, `thumb`, `preview`, `original`).
 
+### One asset — `GET /s/api/asset/:id?album=`
+
+```json
+{
+  "asset": {
+    "id": "123",
+    "w": 800,
+    "h": 1200,
+    "takenAt": "2024-05-01T02:00:00.000Z",
+    "camera": "Cam 1",
+    "thumbhash": "base64…",
+    "mime": "image/jpeg",
+    "thumb": "/s/t/<derivKey>/300.webp",
+    "preview": "/s/t/<derivKey>/1600.webp",
+    "original": "/s/api/o/123?album=album-a"
+  },
+  "albumSlug": "album-a"
+}
+```
+
+Scope rules are the same as `GET /s/api/o/:assetId`: an admin session, or the
+album named in `album` whose folder scope owns the asset. Otherwise `401`
+(no album and no admin session), `403 forbidden` (asset outside that album) or
+`404`. `albumSlug` is the scope used, or `null` for an admin request without
+`album`. This endpoint backs `/s/<album-slug>?p=<assetId>` deep links.
+
 ### Originals — `GET /s/api/o/:assetId?album=`
 
 Allowed for an admin session, or when the asset's folder belongs to the album in
@@ -197,6 +230,36 @@ album.
   `pendingR2` is 0 unless `R2_MODE` is `s3`/`worker`.
 - `GET/POST /s/api/admin/clients`, `PATCH/DELETE /s/api/admin/clients/:id`
 - `GET/POST /s/api/admin/albums`, `PATCH/DELETE /s/api/admin/albums/:id`
+
+`GET /s/api/admin/albums` returns the whole list in one statement (no per-album
+follow-up calls):
+
+```json
+{
+  "albums": [
+    {
+      "id": "10",
+      "clientId": "1",
+      "title": "Album A",
+      "slug": "album-a",
+      "allowDownload": true,
+      "clientName": "Klien Demo",
+      "clientSlug": "klien-demo",
+      "folderCount": 1,
+      "count": 2,
+      "cameras": ["Cam 1", "Cam 2"],
+      "covers": [
+        { "id": "123", "thumb": "/s/t/<derivKey>/300.webp", "preview": "/s/t/<derivKey>/1600.webp", "mime": "image/jpeg", "w": 800, "h": 1200, "takenAt": "2024-05-01T02:00:00.000Z", "camera": "Cam 1", "thumbhash": "base64…", "original": "/s/api/o/123?album=album-a" }
+      ]
+    }
+  ]
+}
+```
+
+`count` is the number of live assets in the album's folder scope; `cameras` is
+the sorted distinct camera list; `covers` is up to three newest assets (full
+`asset` shape). `POST`/`PATCH` return the same album object with `count: 0`,
+`cameras: []` and `covers: []`.
 - `GET/POST /s/api/admin/albums/:id/folders`,
   `DELETE /s/api/admin/albums/:id/folders/:folderId`
 - `GET /s/api/admin/folders?parent=<id>` → `{parent,folders}`; one level only

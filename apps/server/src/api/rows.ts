@@ -6,7 +6,8 @@ export interface AssetRow {
   deriv_key: string;
   w: number | null;
   h: number | null;
-  taken_at: Date | null;
+  /** pg returns Date; JSON aggregates over the same column return an ISO string. */
+  taken_at: Date | string | null;
   camera: string | null;
   thumbhash: string | null;
   mime: string;
@@ -17,7 +18,7 @@ export function toAssetItem(row: AssetRow, thumbBase: string, albumSlug?: string
     id: row.id,
     w: row.w,
     h: row.h,
-    takenAt: row.taken_at ? row.taken_at.toISOString() : null,
+    takenAt: row.taken_at ? new Date(row.taken_at).toISOString() : null,
     camera: row.camera,
     thumbhash: row.thumbhash,
     mime: row.mime,

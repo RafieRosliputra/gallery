@@ -5,11 +5,13 @@ import { SLUG_REGEX, type AdminFolderNode, type AdminFolderTreeResponse, type Ad
 import { requireAdmin, type AuthDeps } from '../auth/routes.js';
 import { bodyRecord, NOT_FOUND_MESSAGE, parseBigIntId, sendError } from './http.js';
 import { albumFolderIds, findAlbumById, findAlbumBySlug, findClientById } from './repository.js';
+import { toAssetItem } from './rows.js';
 
 export interface AdminApiDeps {
   pool: Pool;
   auth: AuthDeps;
   timezone: string;
+  thumbBase: string;
   r2Enabled: boolean;
   triggerScan?: () => Promise<boolean>;
 }
@@ -34,7 +36,7 @@ function conflict(reply: FastifyReply): FastifyReply {
   return sendError(reply, 409, 'slug_conflict', SLUG_CONFLICT);
 }
 
-function albumJson(row: AlbumAdminRow): Record<string, unknown> {
+function albumJson(row: AlbumAdminRow, thumbBase: string): Record<string, unknown> {
   return {
     id: row.id,
     clientId: row.client_id,
@@ -44,6 +46,9 @@ function albumJson(row: AlbumAdminRow): Record<string, unknown> {
     clientSlug: row.client_slug,
     clientName: row.client_name,
     folderCount: row.folder_count,
+    count: row.asset_count,
+    cameras: row.cameras,
+    covers: row.covers.map((cover) => toAssetItem(cover, thumbBase, row.slug)),
   };
 }
 
@@ -170,16 +175,58 @@ export function registerAdminRoutes(app: FastifyInstance, deps: AdminApiDeps): v
       clientId = parseBigIntId(clientIdRaw);
       if (!clientId) return sendError(reply, 400, 'bad_id', 'ID klien tidak sah.');
     }
+    // One statement for the whole list: scope, count, distinct cameras and up
+    // to three covers per album. The admin UI must not fan out per album.
     const { rows } = await deps.pool.query<AlbumAdminRow>(
-      `SELECT a.id, a.client_id, a.title, a.slug, a.allow_download,
+      `WITH scope AS (
+         SELECT DISTINCT af.album_id, f.id AS folder_id
+         FROM album_folder af
+         JOIN folder root ON root.id = af.folder_id
+         JOIN folder f ON f.id = root.id
+           OR (af.recursive AND (root.path = '.' OR starts_with(f.path, root.path || '/')))
+       ),
+       stats AS (
+         SELECT s.album_id,
+                count(x.id)::int AS asset_count,
+                array_agg(DISTINCT x.camera ORDER BY x.camera)
+                  FILTER (WHERE x.camera IS NOT NULL) AS cameras
+         FROM scope s
+         LEFT JOIN asset x ON x.folder_id = s.folder_id AND x.deleted_at IS NULL
+         GROUP BY s.album_id
+       ),
+       covers AS (
+         SELECT album_id,
+                json_agg(json_build_object(
+                  'id', id::text, 'deriv_key', deriv_key, 'w', w, 'h', h,
+                  'taken_at', taken_at, 'camera', camera, 'thumbhash', thumbhash, 'mime', mime
+                ) ORDER BY rn) AS covers
+         FROM (
+           SELECT s.album_id, x.id, x.deriv_key, x.w, x.h, x.taken_at, x.camera, x.thumbhash, x.mime,
+                  row_number() OVER (
+                    PARTITION BY s.album_id
+                    ORDER BY x.taken_at DESC NULLS LAST, x.id DESC
+                  ) AS rn
+           FROM scope s
+           JOIN asset x ON x.folder_id = s.folder_id AND x.deleted_at IS NULL
+         ) ranked
+         WHERE rn <= 3
+         GROUP BY album_id
+       )
+       SELECT a.id, a.client_id, a.title, a.slug, a.allow_download,
               c.slug AS client_slug, c.name AS client_name,
-              (SELECT count(*) FROM album_folder af WHERE af.album_id = a.id)::int AS folder_count
-       FROM album a JOIN client c ON c.id = a.client_id
+              (SELECT count(*) FROM album_folder af WHERE af.album_id = a.id)::int AS folder_count,
+              COALESCE(st.asset_count, 0) AS asset_count,
+              COALESCE(st.cameras, ARRAY[]::text[]) AS cameras,
+              COALESCE(cv.covers, '[]'::json) AS covers
+       FROM album a
+       JOIN client c ON c.id = a.client_id
+       LEFT JOIN stats st ON st.album_id = a.id
+       LEFT JOIN covers cv ON cv.album_id = a.id
        WHERE ($1::bigint IS NULL OR a.client_id = $1)
        ORDER BY a.created_at DESC, a.id DESC`,
       [clientId],
     );
-    return reply.send({ albums: rows.map(albumJson) });
+    return reply.send({ albums: rows.map((row) => albumJson(row, deps.thumbBase)) });
   });
 
   app.post('/s/api/admin/albums', async (request, reply) => {
@@ -209,12 +256,15 @@ export function registerAdminRoutes(app: FastifyInstance, deps: AdminApiDeps): v
          RETURNING id, client_id, title, slug, allow_download,
                    (SELECT slug FROM client WHERE id = $1) AS client_slug,
                    (SELECT name FROM client WHERE id = $1) AS client_name,
-                   0::int AS folder_count`,
+                   0::int AS folder_count,
+                   0::int AS asset_count,
+                   ARRAY[]::text[] AS cameras,
+                   '[]'::json AS covers`,
         [clientId, title.trim(), slug, allowDownload ?? null],
       );
       const row = rows[0];
       if (!row) throw new Error('album insert returned no row');
-      return reply.code(201).send({ album: albumJson(row) });
+      return reply.code(201).send({ album: albumJson(row, deps.thumbBase) });
     } catch (error) {
       if (pgCode(error) === '23505') return conflict(reply);
       throw error;
@@ -263,7 +313,10 @@ export function registerAdminRoutes(app: FastifyInstance, deps: AdminApiDeps): v
          RETURNING id, client_id, title, slug, allow_download,
                    (SELECT slug FROM client WHERE id = album.client_id) AS client_slug,
                    (SELECT name FROM client WHERE id = album.client_id) AS client_name,
-                   (SELECT count(*) FROM album_folder af WHERE af.album_id = album.id)::int AS folder_count`,
+                   (SELECT count(*) FROM album_folder af WHERE af.album_id = album.id)::int AS folder_count,
+                   0::int AS asset_count,
+                   ARRAY[]::text[] AS cameras,
+                   '[]'::json AS covers`,
         [
           id,
           clientId,
@@ -274,7 +327,7 @@ export function registerAdminRoutes(app: FastifyInstance, deps: AdminApiDeps): v
       );
       const row = rows[0];
       if (!row) return sendError(reply, 404, 'not_found', NOT_FOUND_MESSAGE);
-      return reply.send({ album: albumJson(row) });
+      return reply.send({ album: albumJson(row, deps.thumbBase) });
     } catch (error) {
       if (pgCode(error) === '23505') return conflict(reply);
       throw error;
@@ -452,6 +505,20 @@ interface AlbumAdminRow {
   client_slug: string;
   client_name: string;
   folder_count: number;
+  asset_count: number;
+  cameras: string[];
+  covers: AlbumCoverRow[];
+}
+
+interface AlbumCoverRow {
+  id: string;
+  deriv_key: string;
+  w: number | null;
+  h: number | null;
+  taken_at: string | null;
+  camera: string | null;
+  thumbhash: string | null;
+  mime: string;
 }
 
 interface FolderNodeRow {

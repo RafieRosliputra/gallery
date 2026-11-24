@@ -35,6 +35,20 @@ test('direct album open has no portal back link', async ({ page }) => {
   await expect(page.locator('a.back-desktop')).toHaveCount(0);
 });
 
+test('deep-linked asset opens the viewer and asks the API with the album scope', async ({ page }) => {
+  const assetRequests: string[] = [];
+  page.on('request', (request) => {
+    const url = new URL(request.url());
+    if (url.pathname.startsWith('/s/api/asset/')) assetRequests.push(url.search);
+  });
+
+  // Asset from the older bucket, not loaded by the initial timeline page.
+  await page.goto('/s/mawar-konvo-2026?p=mawar-konvo-2026--2026-10-1');
+  await expect(page.getByRole('dialog', { name: 'Lihat gambar' })).toBeVisible();
+  await expect(page.getByText('Gambar tak dijumpai.')).toHaveCount(0);
+  expect(assetRequests.some((search) => search.includes('album=mawar-konvo-2026'))).toBe(true);
+});
+
 test('camera tabs filter the album and update the URL', async ({ page }) => {
   await page.goto('/s/mawar-konvo-2026');
   await expect(page.getByRole('tab', { name: /Semua/ })).toHaveAttribute('aria-selected', 'true');

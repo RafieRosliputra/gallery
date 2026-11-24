@@ -28,6 +28,8 @@ export interface Config {
   /** Read-only photo root. Required by the scanner/worker CLIs, optional for the API-only server. */
   sourceRoot?: string;
   dataDir: string;
+  /** SvelteKit build output served at `/s` (default: apps/web/build). */
+  webDir: string;
   thumbConcurrency: number;
   /** 0 disables the periodic scan. */
   scanIntervalMin: number;
@@ -180,6 +182,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     version: env.APP_VERSION ?? '0.1.0',
     logLevel,
     dataDir: resolveDir(env.DATA_DIR?.trim() || 'data'),
+    webDir: resolveDir(env.WEB_DIR?.trim() || 'apps/web/build'),
     thumbConcurrency: positiveInteger('THUMB_CONCURRENCY', env.THUMB_CONCURRENCY, 1),
     scanIntervalMin,
     scanExclude: parseScanExclude(env.SCAN_EXCLUDE),

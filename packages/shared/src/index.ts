@@ -92,6 +92,13 @@ export interface BucketResponse {
   nextCursor: string | null;
 }
 
+/** Response body of `GET /s/api/asset/:id?album=`. */
+export interface AssetLookupResponse {
+  asset: AssetItem;
+  /** Album used for the scope check; `null` for an admin request without `album`. */
+  albumSlug: string | null;
+}
+
 export interface AdminFolderNode {
   id: string;
   path: string;
