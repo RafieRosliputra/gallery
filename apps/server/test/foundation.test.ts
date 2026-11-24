@@ -10,7 +10,12 @@ describe('db/migrations/001_init.sql', () => {
 
   beforeAll(async () => {
     const applied = await resetAndMigrate();
-    expect(applied).toEqual(['001_init.sql', '002_ingest.sql']);
+    expect(applied).toEqual([
+      '001_init.sql',
+      '002_ingest.sql',
+      '003_api.sql',
+      '004_album_folder_recursive_default.sql',
+    ]);
     pool = createPool();
   });
 
@@ -25,12 +30,14 @@ describe('db/migrations/001_init.sql', () => {
     );
     expect(rows.map((row) => row.table_name)).toEqual([
       'admin',
+      'admin_session',
       'album',
       'album_folder',
       'asset',
       'client',
       'folder',
       'job_error',
+      'login_failure',
       'scan_run',
       'schema_migrations',
       'slug_registry',
@@ -40,7 +47,7 @@ describe('db/migrations/001_init.sql', () => {
   it('is idempotent on a second run', async () => {
     const result = await runMigrations({ databaseUrl: requireTestDatabaseUrl() });
     expect(result.applied).toEqual([]);
-    expect(result.alreadyApplied).toBe(2);
+    expect(result.alreadyApplied).toBe(4);
   });
 
   it('rejects slugs outside [a-z0-9-]{3,60}', async () => {

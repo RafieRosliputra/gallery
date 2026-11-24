@@ -2,8 +2,7 @@
   import { base } from '$app/paths';
   import { goto } from '$app/navigation';
   import { page } from '$app/state';
-  import { onMount } from 'svelte';
-  import type { AdminFolderView } from '@gallery/shared';
+  import type { AdminFolderView } from '$lib/api/models';
   import { api } from '$lib/api/client';
   import { formatCount, formatDayMonth } from '$lib/format';
   import JustifiedGrid from '$lib/components/JustifiedGrid.svelte';
@@ -12,28 +11,31 @@
   let view = $state<AdminFolderView | null>(null);
   let error = $state('');
 
-  const currentPath = $derived(page.url.searchParams.get('path') ?? 'CLIENT');
+  const folderId = $derived(page.url.searchParams.get('folder') ?? undefined);
 
   $effect(() => {
-    const path = currentPath;
-    void load(path);
+    const id = folderId;
+    void load(id);
   });
 
-  async function load(path: string) {
+  async function load(id: string | undefined) {
+    error = '';
     try {
-      view = await api.getAdminFolder(path);
+      view = await api.getAdminFolder(id);
     } catch (cause) {
       console.error('folder gagal', cause);
       error = 'Folder tak dapat dimuatkan.';
     }
   }
 
-  function openFolder(path: string) {
-    void goto(`${base}/admin/folders?path=${encodeURIComponent(path)}`);
+  function openFolder(id: string) {
+    void goto(`${base}/admin/folders?folder=${encodeURIComponent(id)}`);
   }
 
-  const selected = $derived(view?.folders[0]?.path ?? currentPath);
-  const albumHref = $derived(`${base}/admin/albums/new?folders=${encodeURIComponent(selected)}`);
+  const totalAssets = $derived(
+    (view?.folders ?? []).reduce((sum, folder) => sum + folder.assetCount, 0) + (view?.assetCount ?? 0)
+  );
+  const albumHref = $derived(`${base}/admin/albums/new?folders=${encodeURIComponent(view?.path ?? '')}`);
 </script>
 
 <svelte:head>
@@ -47,13 +49,15 @@
     <a href={`${base}/admin/folders`} class="on" aria-current="page">Folder</a>
   </div>
   <nav aria-label="Laluan folder" class="crumbs">
-    <a href={`${base}/admin/folders?path=`}>studio</a>
-    {#each view?.breadcrumb ?? [] as crumb, index (crumb.path)}
-      <span aria-hidden="true">/</span>
-      {#if index === (view?.breadcrumb.length ?? 0) - 1}
-        <span class="current">{crumb.name}</span>
-      {:else}
-        <a href={`${base}/admin/folders?path=${encodeURIComponent(crumb.path)}`}>{crumb.name}</a>
+    <a href={`${base}/admin/folders`}>studio</a>
+    {#each view?.breadcrumb ?? [] as crumb, index (crumb.id)}
+      {#if index > 0 || crumb.path !== '.'}
+        <span aria-hidden="true">/</span>
+        {#if index === (view?.breadcrumb.length ?? 0) - 1}
+          <span class="current">{crumb.name}</span>
+        {:else}
+          <a href={`${base}/admin/folders?folder=${encodeURIComponent(crumb.id)}`}>{crumb.name}</a>
+        {/if}
       {/if}
     {/each}
   </nav>
@@ -68,20 +72,20 @@
     <span class="root">/mnt/a/studio</span>
     {#each view?.tree ?? [] as node (node.id)}
       <a
-        href={`${base}/admin/folders?path=${encodeURIComponent(node.path)}`}
-        class:current={node.path === view?.path}
+        href={`${base}/admin/folders?folder=${encodeURIComponent(node.id)}`}
+        class:current={node.id === view?.id}
         style:padding-left={`${8 + node.depth * 16}px`}
         onclick={(event) => {
           event.preventDefault();
-          openFolder(node.path);
-        }}
-      >{node.name}</a>
+          openFolder(node.id);
+        }}>{node.name}</a
+      >
     {/each}
   </aside>
 
   <div class="content">
     <div class="tools">
-      <span>{formatCount(view?.folderCount)} folder · {formatCount(view?.assetCount)} gambar</span>
+      <span>{formatCount(view?.folderCount)} folder · {formatCount(totalAssets)} gambar</span>
       <a class="create" href={albumHref}>+ Buat album dari folder dipilih</a>
     </div>
 
@@ -89,16 +93,16 @@
       <div class="cards">
         {#each view.folders as folder (folder.id)}
           <a
-            href={`${base}/admin/folders?path=${encodeURIComponent(folder.path)}`}
+            href={`${base}/admin/folders?folder=${encodeURIComponent(folder.id)}`}
             class="card"
             onclick={(event) => {
               event.preventDefault();
-              openFolder(folder.path);
+              openFolder(folder.id);
             }}
           >
             <div class="thumbs">
               {#each Array(4) as _, index (index)}
-                {@const cover = folder.covers?.[index]}
+                {@const cover = folder.covers[index]}
                 <span class="thumb">
                   {#if cover}<Photo asset={cover} theme="light" />{/if}
                 </span>
@@ -112,7 +116,7 @@
         {/each}
       </div>
 
-      <h2 class="loose-head">Gambar terus dalam {view.breadcrumb.at(-1)?.name ?? 'CLIENT'}</h2>
+      <h2 class="loose-head">Gambar terus dalam {view.breadcrumb.at(-1)?.name ?? 'studio'}</h2>
       <JustifiedGrid assets={view.loose} targetRowHeight={140} gap={4} theme="light" ariaLabel="Gambar dalam folder" />
     {:else if !error}
       <p class="loading" aria-busy="true">Memuatkan folder…</p>

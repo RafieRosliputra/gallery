@@ -1,7 +1,7 @@
 <script lang="ts">
   import { base } from '$app/paths';
   import { onMount } from 'svelte';
-  import type { AlbumCard } from '@gallery/shared';
+  import type { AlbumCard } from '$lib/api/models';
   import { copyText } from '$lib/clipboard';
   import { formatCount } from '$lib/format';
   import Icon from './Icon.svelte';

@@ -23,12 +23,21 @@
     "scan": "npm run build && node apps/server/dist/scan-cli.js",
     "worker": "npm run build && node apps/server/dist/worker-cli.js",
     "format-check": "node scripts/format-check.mjs",
-    "start": "node apps/server/dist/index.js"
+    "start": "node apps/server/dist/index.js",
+    "admin:create": "npm run build && node apps/server/dist/admin-cli.js"
+  },
+  "dependencies": {
+    "@fastify/cookie": "11.0.2",
+    "@node-rs/argon2": "2.2.2",
+    "yazl": "3.3.1"
   },
   "devDependencies": {
     "@types/node": "22.20.5",
+    "@types/yauzl": "3.4.0",
+    "@types/yazl": "3.3.1",
     "typescript": "5.9.3",
-    "vitest": "5.1.1"
+    "vitest": "5.1.1",
+    "yauzl": "3.4.0"
   },
   "allowScripts": {
     "sharp@0.35.5": true

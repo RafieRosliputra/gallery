@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import type { AdminStatusView } from '@gallery/shared';
+  import type { AdminStatusView } from '$lib/api/models';
   import { api } from '$lib/api/client';
   import { formatBytes, formatClock, formatCount } from '$lib/format';
 
@@ -14,6 +14,25 @@
       console.error('status gagal', cause);
       error = 'Status sistem tak dapat dimuatkan.';
     }
+  });
+
+  const logEntries = $derived.by(() => {
+    if (status?.log?.length) return status.log;
+    if (!status) return [];
+    return [
+      {
+        at: status.lastScanAt ? formatClock(status.lastScanAt) : '—',
+        message: 'Imbas terakhir selesai'
+      },
+      {
+        at: '—',
+        message: `${formatCount(status.pendingThumbs)} thumbnail dalam giliran`
+      },
+      {
+        at: '—',
+        message: `${formatCount(status.errors24h)} ralat dalam 24 jam`
+      }
+    ];
   });
 
   interface Card {
@@ -50,14 +69,23 @@
         tone: 'run',
         tag: 'Berjalan'
       },
-      {
-        title: 'Push ke R2',
-        big: formatCount(r2done),
-        pct: r2Pct,
-        note: 'cdn.johorstudio.com · 0 gagal',
-        tone: 'ok',
-        tag: 'OK'
-      },
+      status.r2Enabled
+        ? {
+            title: 'Push ke R2',
+            big: formatCount(r2done),
+            pct: r2Pct,
+            note: 'cdn.johorstudio.com · 0 gagal',
+            tone: 'ok' as const,
+            tag: 'OK'
+          }
+        : {
+            title: 'Push ke R2',
+            big: '—',
+            pct: 0,
+            note: 'R2 dimatikan (R2_MODE=off)',
+            tone: 'off' as const,
+            tag: 'Tutup'
+          },
       {
         title: 'Hot cache SSD',
         big: hot ? `${Math.round(hot.usedBytes / 1024 ** 3)} / ${Math.round(hot.capBytes / 1024 ** 3)} GB` : '—',
@@ -113,7 +141,7 @@
 
 <section class="log">
   <h2>Log terkini</h2>
-  {#each status?.log ?? [] as entry, index (index)}
+  {#each logEntries as entry, index (index)}
     <div class="log-row"><span class="time">{entry.at}</span><span>{entry.message}</span></div>
   {:else}
     <p class="note">Tiada log.</p>

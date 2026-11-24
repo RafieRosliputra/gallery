@@ -19,7 +19,7 @@
 
   onMount(async () => {
     try {
-      await api.getAdminStatus();
+      await api.getSession();
       ready = true;
     } catch {
       const next = page.url.pathname + page.url.search;

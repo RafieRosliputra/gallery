@@ -40,6 +40,13 @@ width axes) so the strict CSP never needs Google Fonts.
 `logo-dark.png` (dark ink) ships for light backgrounds and the favicon.
 Source: `~/Desktop/ai/claude/projects/jsw-push/site/img/`.
 
+## DRIFT in section labels
+
+The active API (phase 1c) returns month buckets (`YYYY-MM`) for the admin
+timeline and public albums, so the UI renders `Nov 2026` section headings. The
+mocks' `9:00 pagi` / day headings are illustrative only; row layout and visual
+structure are unchanged.
+
 ## Photos in screenshots
 
 Mock photos are generated SVG gradients (`src/lib/mocks`), deterministic and

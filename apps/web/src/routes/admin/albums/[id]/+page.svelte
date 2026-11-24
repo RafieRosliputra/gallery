@@ -2,14 +2,15 @@
   import { base } from '$app/paths';
   import { page } from '$app/state';
   import { goto } from '$app/navigation';
-  import type { AdminAlbumDetail, AdminFolderNode, AdminTreeEntry, ClientRef } from '@gallery/shared';
+  import type { AdminAlbumDetail, AdminFolderNode, AdminTreeEntry } from '$lib/api/models';
+  import type { ClientSummary } from '@gallery/shared';
   import { SLUG_REGEX } from '@gallery/shared';
   import { api, ApiError, isNotFound } from '$lib/api/client';
   import { formatCount } from '$lib/format';
   import Photo from '$lib/components/Photo.svelte';
 
   let detail = $state<AdminAlbumDetail | null>(null);
-  let clients = $state<ClientRef[]>([]);
+  let clients = $state<ClientSummary[]>([]);
   let selected = $state<string[]>([]);
   let clientId = $state('');
   let title = $state('');
@@ -40,13 +41,14 @@
       if (albumId === 'new') {
         const [clientResponse, folderView] = await Promise.all([
           api.getAdminClients(),
-          api.getAdminFolder('CLIENT')
+          api.getAdminFolder()
         ]);
-        clients = clientResponse.clients;
+        clients = clientResponse;
         clientId = page.url.searchParams.get('client') ?? clients[0]?.id ?? '';
         const preselected = page.url.searchParams.get('folders');
         const nodes: AdminFolderNode[] = folderView.tree.map((node: AdminTreeEntry) => ({
           ...node,
+          hasChildren: node.folderCount > 0,
           selected: preselected ? node.path === preselected : false
         }));
         detail = {
@@ -61,6 +63,7 @@
             assetCount: 0,
             folderCount: 0,
             coverAssetIds: [],
+            covers: [],
             cameras: [],
             takenAt: null,
             createdAt: ''

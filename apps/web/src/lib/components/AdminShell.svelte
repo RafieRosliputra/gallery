@@ -1,7 +1,7 @@
 <script lang="ts">
   import { base } from '$app/paths';
   import { onMount } from 'svelte';
-  import type { AdminStatusView } from '@gallery/shared';
+  import type { AdminStatusView } from '$lib/api/models';
   import { api, isUnauthorised } from '$lib/api/client';
   import { formatCount } from '$lib/format';
   import Icon from './Icon.svelte';

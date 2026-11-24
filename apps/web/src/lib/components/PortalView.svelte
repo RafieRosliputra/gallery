@@ -1,7 +1,7 @@
 <script lang="ts">
   import { base } from '$app/paths';
   import { goto } from '$app/navigation';
-  import type { AlbumCard, ClientPortalResponse } from '@gallery/shared';
+  import type { AlbumCard, ClientPortalResponse } from '$lib/api/models';
   import { formatCount, formatShortDate } from '$lib/format';
   import { markOpenedFromClient } from '$lib/routing/back';
   import Icon from '$lib/components/Icon.svelte';

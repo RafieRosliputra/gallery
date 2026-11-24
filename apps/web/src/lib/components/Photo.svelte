@@ -1,6 +1,6 @@
 <script lang="ts">
   import { thumbHashToDataURL } from 'thumbhash';
-  import type { AssetItem } from '@gallery/shared';
+  import type { Asset } from '$lib/api/models';
 
   let {
     asset,
@@ -9,7 +9,7 @@
     alt = '',
     eager = false
   }: {
-    asset: AssetItem;
+    asset: Asset;
     mode?: 'thumb' | 'preview';
     theme?: 'light' | 'dark';
     alt?: string;

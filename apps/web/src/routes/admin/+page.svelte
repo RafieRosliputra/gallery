@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import type { AdminBucketsResponse, AdminStatusView, AssetItem, BucketRef } from '@gallery/shared';
+  import type { AdminBucketsResponse, AdminStatusView, Asset, BucketRef } from '$lib/api/models';
   import { api } from '$lib/api/client';
   import { formatClock, formatCount } from '$lib/format';
   import Icon from '$lib/components/Icon.svelte';
@@ -8,7 +8,7 @@
 
   let status = $state<AdminStatusView | null>(null);
   let bucketData = $state<AdminBucketsResponse | null>(null);
-  let days = $state<Record<string, AssetItem[]>>({});
+  let days = $state<Record<string, Asset[]>>({});
   let query = $state('');
   let notice = $state('');
   let busy = $state(false);
@@ -24,7 +24,6 @@
   const activeMonth = $derived((bucketData?.buckets[0]?.key ?? '').slice(0, 7));
 
   const years = $derived.by(() => {
-    if (bucketData?.months) return bucketData.months;
     const groups = new Map<number, { key: string; label: string }[]>();
     for (const bucket of bucketData?.buckets ?? []) {
       const year = bucket.year ?? Number(bucket.key.slice(0, 4));

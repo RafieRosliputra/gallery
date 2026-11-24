@@ -17,7 +17,7 @@
 
   onMount(async () => {
     try {
-      await api.getAdminStatus();
+      await api.getSession();
       if (loginGate('yes') === 'admin') await goto(next, { replaceState: true });
     } catch {
       // 401 is the expected state; network errors also leave the form usable.

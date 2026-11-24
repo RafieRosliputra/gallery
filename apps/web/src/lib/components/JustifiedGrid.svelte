@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { AssetItem } from '@gallery/shared';
+  import type { Asset } from '$lib/api/models';
   import type { FavouritesStore } from '$lib/stores/favourites';
   import { justifiedRows } from '$lib/layout/justified';
   import Photo from './Photo.svelte';
@@ -14,7 +14,7 @@
     onopen = undefined,
     ariaLabel = 'Galeri gambar'
   }: {
-    assets: AssetItem[];
+    assets: Asset[];
     targetRowHeight?: number;
     gap?: number;
     theme?: 'light' | 'dark';

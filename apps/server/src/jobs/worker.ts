@@ -1,8 +1,7 @@
 import os from 'node:os';
 import type { Pool } from 'pg';
 import type { PgBoss } from 'pg-boss';
-import type { R2Config } from '../config.js';
-import { createR2Uploader, type R2Uploader } from '../r2/uploader.js';
+import type { R2Uploader } from '../r2/uploader.js';
 import { createBoss, enqueueR2Upload, ensureQueues, QUEUE_R2, QUEUE_THUMB } from './boss.js';
 import { recordJobError } from './errors.js';
 import { processThumbJob } from './thumb.js';
@@ -13,7 +12,7 @@ export interface WorkerOptions {
   sourceRoot: string;
   dataDir: string;
   thumbConcurrency: number;
-  r2?: R2Config;
+  uploader?: R2Uploader;
 }
 
 interface JobData {
@@ -47,19 +46,19 @@ export async function startWorker(options: WorkerOptions): Promise<PgBoss> {
         dataDir: options.dataDir,
         assetId: job.data.assetId,
       });
-      if (result && options.r2) await enqueueR2Upload(boss, job.data.assetId);
+      if (result && options.uploader) await enqueueR2Upload(boss, job.data.assetId);
     },
   );
 
-  if (options.r2) {
-    const uploader = createR2Uploader(options.r2);
+  if (options.uploader) {
+    const uploader = options.uploader;
     await boss.work<JobData>(QUEUE_R2, { batchSize: 1, localConcurrency: 1, pollingIntervalSeconds: 0.5 }, async (jobs) => {
       const job = jobs[0];
       if (!job) return;
       await processR2Job(options.pool, uploader, options.dataDir, job.data.assetId);
     });
   } else {
-    console.info('r2: disabled (R2_* env not set); uploads are skipped');
+    console.info('r2: disabled (R2_MODE=off); uploads are skipped');
   }
 
   return boss;

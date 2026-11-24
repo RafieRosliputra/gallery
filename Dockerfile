@@ -34,4 +34,4 @@ COPY scripts ./scripts
 RUN chmod -R a+rX /app
 USER node
 EXPOSE 3000
-CMD ["node", "apps/server/dist/index.js"]
+CMD ["sh", "-c", "node apps/server/dist/migrate-cli.js && node apps/server/dist/index.js"]

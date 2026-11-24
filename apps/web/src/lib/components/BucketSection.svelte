@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import type { AssetItem, BucketRef } from '@gallery/shared';
+  import type { Asset, BucketRef } from '$lib/api/models';
   import { api } from '$lib/api/client';
   import { formatCount } from '$lib/format';
   import type { FavouritesStore } from '$lib/stores/favourites';
@@ -27,14 +27,14 @@
     targetRowHeight: number;
     gap: number;
     cacheKey: string;
-    initial?: { items: AssetItem[]; nextCursor: string | null };
+    initial?: { items: Asset[]; nextCursor: string | null };
     onopen: (id: string) => void;
-    onitems: (cacheKey: string, items: AssetItem[], nextCursor: string | null) => void;
+    onitems: (cacheKey: string, items: Asset[], nextCursor: string | null) => void;
   } = $props();
 
   // Initial data comes from the virtual list cache; it is intentionally read once.
   // svelte-ignore state_referenced_locally
-  let items = $state<AssetItem[]>(initial?.items ?? []);
+  let items = $state<Asset[]>(initial?.items ?? []);
   // svelte-ignore state_referenced_locally
   let nextCursor = $state<string | null>(initial?.nextCursor ?? null);
   // svelte-ignore state_referenced_locally

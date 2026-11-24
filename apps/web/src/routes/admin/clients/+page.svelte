@@ -1,7 +1,7 @@
 <script lang="ts">
   import { base } from '$app/paths';
   import { onMount } from 'svelte';
-  import type { AdminClient } from '@gallery/shared';
+  import type { AdminClient } from '$lib/api/models';
   import { api } from '$lib/api/client';
   import { copyText } from '$lib/clipboard';
   import { formatCount } from '$lib/format';
@@ -17,7 +17,7 @@
 
   onMount(async () => {
     try {
-      clients = (await api.getAdminClients()).clients;
+      clients = await api.getAdminClients();
     } catch (cause) {
       console.error('klien gagal', cause);
       error = 'Senarai klien tak dapat dimuatkan.';

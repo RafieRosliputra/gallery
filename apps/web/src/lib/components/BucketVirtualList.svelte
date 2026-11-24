@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { Action } from 'svelte/action';
-  import type { AssetItem, BucketRef } from '@gallery/shared';
+  import type { Asset, BucketRef } from '$lib/api/models';
   import { estimateBucketHeight } from '$lib/layout/justified';
   import type { FavouritesStore } from '$lib/stores/favourites';
   import BucketSection from './BucketSection.svelte';
@@ -20,14 +20,14 @@
     theme?: 'light' | 'dark';
     favourites?: FavouritesStore | null;
     onopen: (id: string) => void;
-    onloaded: (cacheKey: string, items: AssetItem[]) => void;
+    onloaded: (cacheKey: string, items: Asset[]) => void;
   } = $props();
 
   let width = $state(0);
   let heights = $state<Record<string, number>>({});
   let active = $state<Record<string, boolean>>({});
 
-  const cache = new Map<string, { items: AssetItem[]; nextCursor: string | null }>();
+  const cache = new Map<string, { items: Asset[]; nextCursor: string | null }>();
 
   const compact = $derived(width > 0 && width < 640);
   const gap = $derived(compact ? 2 : 4);
@@ -48,7 +48,7 @@
     );
   }
 
-  function store(key: string, items: AssetItem[], nextCursor: string | null) {
+  function store(key: string, items: Asset[], nextCursor: string | null) {
     cache.set(key, { items, nextCursor });
     onloaded(key, items);
   }

@@ -2,7 +2,7 @@
   import { base } from '$app/paths';
   import { page } from '$app/state';
   import { goto } from '$app/navigation';
-  import type { AlbumResponse, AssetItem } from '@gallery/shared';
+  import type { AlbumResponse, Asset } from '$lib/api/models';
   import { api, downloadBlob } from '$lib/api/client';
   import { formatCount, formatShortDate } from '$lib/format';
   import { getFavourites } from '$lib/stores/favourites';
@@ -33,9 +33,9 @@
   const shareOpen = $derived(page.url.searchParams.get('share') === '1');
 
   let menuOpen = $state(false);
-  let itemsByBucket = $state<Record<string, AssetItem[]>>({});
-  let directAssets = $state<Record<string, AssetItem>>({});
-  let favAssets = $state<AssetItem[]>([]);
+  let itemsByBucket = $state<Record<string, Asset[]>>({});
+  let directAssets = $state<Record<string, Asset>>({});
+  let favAssets = $state<Asset[]>([]);
   let toast = $state('');
   let zipBusy = $state(false);
   let viewerPushed = $state(false);
@@ -50,7 +50,7 @@
   });
 
   const loaded = $derived.by(() => {
-    const map = new Map<string, AssetItem>();
+    const map = new Map<string, Asset>();
     for (const bucket of data.buckets) {
       for (const item of itemsByBucket[`${activeCam ?? 'all'}:${bucket.key}`] ?? []) {
         map.set(item.id, item);
@@ -98,18 +98,18 @@
   $effect(() => {
     if (!favMode) return;
     const ids = favIds;
-    const cached = new Map<string, AssetItem>();
+    const cached = new Map<string, Asset>();
     for (const item of loaded.values()) cached.set(item.id, item);
     for (const [key, item] of Object.entries(directAssets)) cached.set(key, item);
     const missing = ids.filter((id) => !cached.has(id));
     const key = ids.join(',');
     if (key === favFetchKey && missing.length === 0) {
-      favAssets = ids.map((id) => cached.get(id)).filter((item): item is AssetItem => Boolean(item));
+      favAssets = ids.map((id) => cached.get(id)).filter((item): item is Asset => Boolean(item));
       return;
     }
     favFetchKey = key;
     if (missing.length === 0) {
-      favAssets = ids.map((id) => cached.get(id)).filter((item): item is AssetItem => Boolean(item));
+      favAssets = ids.map((id) => cached.get(id)).filter((item): item is Asset => Boolean(item));
       return;
     }
     let cancelled = false;
@@ -125,7 +125,7 @@
       if (cancelled) return;
       const merged = new Map(cached);
       for (const item of fetched) if (item) merged.set(item.id, item);
-      favAssets = ids.map((id) => merged.get(id)).filter((item): item is AssetItem => Boolean(item));
+      favAssets = ids.map((id) => merged.get(id)).filter((item): item is Asset => Boolean(item));
     });
     return () => {
       cancelled = true;
@@ -207,7 +207,7 @@
     void goto(urlWith({ share: null }), { replaceState: true, noScroll: true });
   }
 
-  function onBucketLoaded(cacheKey: string, items: AssetItem[]) {
+  function onBucketLoaded(cacheKey: string, items: Asset[]) {
     const next = { ...itemsByBucket, [cacheKey]: items };
     itemsByBucket = next;
   }

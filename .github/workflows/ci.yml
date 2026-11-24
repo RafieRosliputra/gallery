@@ -99,6 +99,24 @@ jobs:
           docker push "$IMAGE:${GITHUB_SHA}"
           docker push "$IMAGE:latest"
 
+  worker:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: worker
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: worker/package-lock.json
+      - name: Install worker deps
+        run: npm ci
+      - name: Typecheck worker
+        run: npm run typecheck
+      - name: Test worker (miniflare R2 + proxy + secrets)
+        run: npm test
   web:
     runs-on: ubuntu-latest
     env:

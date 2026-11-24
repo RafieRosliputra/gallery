@@ -37,7 +37,7 @@ test.describe('screenshots', () => {
       ['admin-timeline', '/admin'],
       ['admin-folders', '/admin/folders'],
       ['admin-albums', '/admin/albums'],
-      ['admin-album-edit', '/admin/albums/mawar-konvo-2026'],
+      ['admin-album-edit', '/admin/albums/1'],
       ['admin-clients', '/admin/clients'],
       ['admin-status', '/admin/status']
     ] as const) {

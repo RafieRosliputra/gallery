@@ -1,7 +1,7 @@
 <script lang="ts">
   import { base } from '$app/paths';
   import { onMount } from 'svelte';
-  import type { AdminAlbum } from '@gallery/shared';
+  import type { AdminAlbum } from '$lib/api/models';
   import { api } from '$lib/api/client';
   import { formatCount } from '$lib/format';
   import Photo from '$lib/components/Photo.svelte';
@@ -11,7 +11,7 @@
 
   onMount(async () => {
     try {
-      albums = (await api.getAdminAlbums()).albums;
+      albums = await api.getAdminAlbums();
     } catch (cause) {
       console.error('album gagal', cause);
       error = 'Senarai album tak dapat dimuatkan.';

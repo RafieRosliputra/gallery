@@ -1,7 +1,7 @@
 <script lang="ts">
   import { base } from '$app/paths';
   import { onMount } from 'svelte';
-  import type { AlbumCard, AssetItem } from '@gallery/shared';
+  import type { AlbumCard, Asset } from '$lib/api/models';
   import { api } from '$lib/api/client';
   import { copyText } from '$lib/clipboard';
   import { formatCount } from '$lib/format';
@@ -23,7 +23,7 @@
     onchange,
     ontoggle
   }: {
-    items: AssetItem[];
+    items: Asset[];
     id: string;
     album: AlbumCard;
     allowDownload: boolean;
@@ -160,7 +160,7 @@
         <Icon name="heart" size={22} fill={isFav ? 'currentColor' : 'none'} />
       </button>
       {#if allowDownload && active}
-        <a class="icon-button" href={api.originalUrl(active.id)} download aria-label="Download gambar ni" title="Download gambar ni">
+        <a class="icon-button" href={active.original ?? api.originalUrl(active.id, album.slug)} download aria-label="Download gambar ni" title="Download gambar ni">
           <Icon name="download" size={23} />
         </a>
       {/if}

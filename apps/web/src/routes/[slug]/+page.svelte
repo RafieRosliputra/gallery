@@ -1,7 +1,7 @@
 <script lang="ts">
   import { page } from '$app/state';
   import { api, isNotFound } from '$lib/api/client';
-  import type { AlbumResponse, ClientPortalResponse } from '@gallery/shared';
+  import type { AlbumResponse, ClientPortalResponse } from '$lib/api/models';
   import AlbumView from '$lib/components/AlbumView.svelte';
   import PortalView from '$lib/components/PortalView.svelte';
   import Logo from '$lib/components/Logo.svelte';
@@ -29,7 +29,7 @@
         client = await api.getClient(target);
         mode = 'client';
       } else {
-        album = await api.getAlbum(target, page.url.searchParams.get('cam'));
+        album = await api.getAlbum(target, { cover: true });
         mode = 'album';
       }
     } catch (cause) {
