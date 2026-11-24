@@ -1,0 +1,20 @@
+{
+  "name": "@gallery/server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "scripts": {
+    "build": "tsc -b",
+    "start": "node dist/index.js"
+  },
+  "dependencies": {
+    "@gallery/shared": "0.1.0",
+    "fastify": "5.12.8",
+    "pg": "8.23.1",
+    "sharp": "0.34.5"
+  },
+  "devDependencies": {
+    "@types/pg": "8.23.1"
+  }
+}
