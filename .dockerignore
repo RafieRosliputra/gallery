@@ -1,6 +1,8 @@
 node_modules
 **/node_modules
 **/dist
+apps/web/build
+apps/web/.svelte-kit
 .git
 .github
 coverage

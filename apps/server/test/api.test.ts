@@ -199,6 +199,74 @@ describe('public and admin API', () => {
     expect(adminScoped.statusCode).toBe(200);
   });
 
+  it('looks up one asset with the same scope rules as originals', async () => {
+    const anonymous = await app.inject({ method: 'GET', url: `/s/api/asset/${ids.a1}` });
+    expect(anonymous.statusCode).toBe(401);
+
+    const wrongAlbum = await app.inject({ method: 'GET', url: `/s/api/asset/${ids.a1}?album=album-b` });
+    expect(wrongAlbum.statusCode).toBe(403);
+
+    const scoped = await app.inject({ method: 'GET', url: `/s/api/asset/${ids.a1}?album=album-a` });
+    expect(scoped.statusCode).toBe(200);
+    expect(scoped.headers['cache-control']).toBe('no-store');
+    expect(scoped.json()).toMatchObject({
+      albumSlug: 'album-a',
+      asset: {
+        id: ids.a1,
+        mime: 'image/jpeg',
+        thumb: `/s/t/${KEY_A}/300.webp`,
+        preview: `/s/t/${KEY_A}/1600.webp`,
+      },
+    });
+    expect(scoped.json().asset.original).toContain('album=album-a');
+
+    // allow_download=false still exposes metadata; only the original is gated.
+    const downloadOff = await app.inject({ method: 'GET', url: `/s/api/asset/${ids.b1}?album=album-b` });
+    expect(downloadOff.statusCode).toBe(200);
+
+    const admin = await app.inject({
+      method: 'GET',
+      url: `/s/api/asset/${ids.a1}`,
+      headers: { cookie: ids.adminCookie },
+    });
+    expect(admin.statusCode).toBe(200);
+    expect(admin.json()).toMatchObject({ albumSlug: null, asset: { id: ids.a1 } });
+
+    const missing = await app.inject({ method: 'GET', url: '/s/api/asset/999999?album=album-a' });
+    expect(missing.statusCode).toBe(404);
+    const bad = await app.inject({ method: 'GET', url: '/s/api/asset/not-a-number?album=album-a' });
+    expect(bad.statusCode).toBe(400);
+  });
+
+  it('returns enriched admin albums (count, cameras, covers) in one list response', async () => {
+    const response = await app.inject({
+      method: 'GET',
+      url: '/s/api/admin/albums',
+      headers: { cookie: ids.adminCookie },
+    });
+    expect(response.statusCode).toBe(200);
+    const albums = response.json().albums as {
+      id: string;
+      slug: string;
+      count: number;
+      cameras: string[];
+      covers: { id: string; thumb: string }[];
+      clientName: string;
+    }[];
+    const albumA = albums.find((album) => album.slug === 'album-a');
+    expect(albumA).toMatchObject({
+      count: 2,
+      cameras: ['Cam 1', 'Cam 2'],
+      clientName: 'Klien Demo',
+    });
+    expect(albumA?.covers.map((cover) => cover.id)).toEqual([ids.a2, ids.a1]);
+    expect(albumA?.covers[0]?.thumb).toBe(`/s/t/${KEY_B}/300.webp`);
+
+    const albumB = albums.find((album) => album.slug === 'album-b');
+    expect(albumB).toMatchObject({ count: 1, cameras: [] });
+    expect(albumB?.covers).toHaveLength(1);
+  });
+
   it('streams a ZIP with allow_download enforced, ids and cam filters, no full album leak', async () => {
     const blocked = await app.inject({
       method: 'POST',
@@ -499,6 +567,68 @@ describe('public and admin API', () => {
       expect(allowed.statusCode).toBe(200);
     } finally {
       await protectedApp.close();
+    }
+  });
+
+  it('serves the SPA at /s with cache rules and no fallback for API paths', async () => {
+    const webDir = await mkdtemp(path.join(os.tmpdir(), 'api-web-'));
+    const csp = "default-src 'self'; script-src 'self' 'sha256-testhash='; object-src 'none'";
+    try {
+      await writeFile(
+        path.join(webDir, 'index.html'),
+        `<!doctype html><html lang="ms"><head>` +
+          `<meta http-equiv="content-security-policy" content="${csp}">` +
+          `<title>JohorStudio · Galeri</title></head><body><div class="app-root"></div></body></html>`,
+      );
+      await mkdir(path.join(webDir, '_app', 'immutable'), { recursive: true });
+      await writeFile(path.join(webDir, '_app', 'immutable', 'app.js'), 'console.log("gallery");');
+      await writeFile(path.join(webDir, 'logo.png'), 'not-a-real-png');
+
+      const web = buildApp({ pool, version: 'test', webDir });
+      try {
+        const root = await web.inject({ method: 'GET', url: '/s' });
+        expect(root.statusCode).toBe(200);
+        expect(root.headers['content-type']).toContain('text/html');
+        expect(root.headers['cache-control']).toBe('no-cache');
+        expect(root.headers['content-security-policy']).toBe(csp);
+        expect(root.headers['x-content-type-options']).toBe('nosniff');
+        expect(root.body).toContain('<title>JohorStudio · Galeri</title>');
+
+        const deepLink = await web.inject({ method: 'GET', url: '/s/tadika-contoh?p=123' });
+        expect(deepLink.statusCode).toBe(200);
+        expect(deepLink.body).toContain('<title>JohorStudio · Galeri</title>');
+
+        const unknown = await web.inject({ method: 'GET', url: '/s/xyz' });
+        expect(unknown.statusCode).toBe(200);
+        expect(unknown.body).toContain('<title>JohorStudio · Galeri</title>');
+
+        const hashed = await web.inject({ method: 'GET', url: '/s/_app/immutable/app.js' });
+        expect(hashed.statusCode).toBe(200);
+        expect(hashed.headers['content-type']).toContain('javascript');
+        expect(hashed.headers['cache-control']).toBe('public, max-age=31536000, immutable');
+
+        const staticFile = await web.inject({ method: 'GET', url: '/s/logo.png' });
+        expect(staticFile.statusCode).toBe(200);
+        expect(staticFile.headers['cache-control']).toBe('public, max-age=3600');
+
+        const apiMiss = await web.inject({ method: 'GET', url: '/s/api/nope' });
+        expect(apiMiss.statusCode).toBe(404);
+        expect(apiMiss.headers['content-type']).toContain('application/json');
+        expect(apiMiss.body).not.toContain('<title>');
+
+        const derivativeMiss = await web.inject({ method: 'GET', url: '/s/t/nope/300.webp' });
+        expect(derivativeMiss.statusCode).toBe(404);
+        const r2Miss = await web.inject({ method: 'GET', url: '/s/_r2/nope' });
+        expect(r2Miss.statusCode).toBe(404);
+
+        const traversal = await web.inject({ method: 'GET', url: '/s/..%2f..%2fpackage.json' });
+        expect(traversal.statusCode).toBe(200);
+        expect(traversal.body).toContain('<title>JohorStudio · Galeri</title>');
+      } finally {
+        await web.close();
+      }
+    } finally {
+      await rm(webDir, { recursive: true, force: true });
     }
   });
 

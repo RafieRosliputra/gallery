@@ -174,9 +174,15 @@ interface AdminAlbumWire {
   clientSlug: string;
   clientName: string;
   folderCount: number;
+  count: number;
+  cameras: string[];
+  covers: WireAsset[];
 }
 
 function toAdminAlbum(wire: AdminAlbumWire, detail: AlbumResponse | null): AdminAlbum {
+  const covers = wire.covers?.length
+    ? wire.covers.map(toAsset)
+    : (detail?.album.covers ?? []);
   return {
     id: wire.id,
     title: wire.title,
@@ -185,12 +191,12 @@ function toAdminAlbum(wire: AdminAlbumWire, detail: AlbumResponse | null): Admin
     clientName: wire.clientName,
     clientSlug: wire.clientSlug,
     allowDownload: wire.allowDownload,
-    assetCount: detail?.album.assetCount ?? 0,
+    assetCount: wire.count || detail?.album.assetCount || 0,
     folderCount: wire.folderCount,
-    coverAssetIds: detail?.album.coverAssetIds ?? [],
-    covers: detail?.album.covers ?? [],
-    cameras: detail?.album.cameras ?? [],
-    takenAt: detail?.album.takenAt ?? null
+    coverAssetIds: covers.map((cover) => cover.id),
+    covers,
+    cameras: wire.cameras?.length ? wire.cameras : detail?.album.cameras ?? [],
+    takenAt: covers[0]?.takenAt ?? detail?.album.takenAt ?? null
   };
 }
 
@@ -258,18 +264,10 @@ async function albumDetail(slug: string, options: { cover?: boolean } = {}): Pro
 }
 
 async function adminAlbums(): Promise<AdminAlbum[]> {
+  // The list endpoint carries count, cameras and covers already; no per-album
+  // fan-out (apps/server/src/api/admin.ts is one statement).
   const response = await request<{ albums: AdminAlbumWire[] }>('/admin/albums');
-  return Promise.all(
-    response.albums.map(async (album) => {
-      let detail: AlbumResponse | null = null;
-      try {
-        detail = await albumDetail(album.slug, { cover: true });
-      } catch {
-        detail = null;
-      }
-      return toAdminAlbum(album, detail);
-    })
-  );
+  return response.albums.map((album) => toAdminAlbum(album, null));
 }
 
 interface WireFolderTree extends AdminFolderTreeResponse {}
@@ -370,13 +368,13 @@ export const api = {
     return { items: page.assets.map(toAsset), nextCursor: page.nextCursor };
   },
 
-  async getAsset(id: string): Promise<AssetResponse> {
-    const wire = await request<{ asset: WireAsset; album: WireAlbumCard | null }>(
-      `/asset/${encodeURIComponent(id)}`
+  async getAsset(id: string, albumSlug?: string): Promise<AssetResponse> {
+    const wire = await request<{ asset: WireAsset; albumSlug: string | null }>(
+      `/asset/${encodeURIComponent(id)}${query({ album: albumSlug })}`
     );
     return {
       asset: toAsset(wire.asset),
-      album: wire.album ? toAlbumCard(wire.album) : null
+      albumSlug: wire.albumSlug
     };
   },
 

@@ -11,11 +11,16 @@ npm run build -w @gallery/web                # production build (no MSW)
 ```
 
 - Output: `apps/web/build/` (`index.html` fallback + `_app/` + static logos).
-- Fastify must serve `apps/web/build` at `/s` and return `build/index.html` for
-  unmatched `GET /s/*` so the client router owns `/s/<slug>`, `/s/admin/...`,
-  query-string overlays (`?p=`, `?fav=1`, `?share=1`) and deep links.
-- API calls are same-origin under `/s/api/*`; route them before the static
-  fallback. The wire contract is `packages/shared/src/index.ts` (phase 1c).
+- Fastify serves `WEB_DIR` (default `apps/web/build`; Docker sets
+  `/app/apps/web/build`) at `/s`, returns `build/index.html` for unmatched
+  `GET /s/*` so the client router owns `/s/<slug>`, `/s/admin/...`, query-string
+  overlays (`?p=`, `?fav=1`, `?share=1`) and deep links, and 404s unknown
+  `/s/api/*`, `/s/t/*`, `/s/_r2/*` paths instead of falling back.
+- Hashed `_app/immutable/*` files are cached `immutable` for a year;
+  `index.html` is `no-cache`; other static files get one hour.
+- API calls are same-origin under `/s/api/*`; they are registered before the
+  static wildcard. The wire contract is `packages/shared/src/index.ts`
+  (phase 1c).
   `src/lib/api/client.ts` adapts it into the UI view models in
   `src/lib/api/models.ts` (nullable dimensions, single cover, month keys).
 - `paths.base` is `/s`; every asset URL is emitted under `/s/_app/...`.
@@ -23,20 +28,27 @@ npm run build -w @gallery/web                # production build (no MSW)
 ### CSP
 
 The UI uses no inline `style=""` attributes (only Svelte `style:` directives,
-which set CSSOM properties) and no inline scripts. Needed for the strict CSP:
+which set CSSOM properties). SvelteKit does emit an inline bootstrap script into
+the SPA fallback, so `svelte.config.js` sets `kit.csp.mode = 'hash'`: the build
+writes a strict `<meta http-equiv="content-security-policy">` with that script's
+SHA-256 (no `unsafe-inline`). Fastify copies that exact value into a
+`Content-Security-Policy` response header for `index.html`.
 
 ```
 default-src 'self';
-script-src 'self';
+script-src 'self' 'sha256-…';
 style-src 'self';
 font-src 'self';
 img-src 'self' data: blob: https://cdn.johorstudio.com;
 connect-src 'self';
 worker-src 'self';   # only when serving a VITE_MOCKS build
+object-src 'none'; base-uri 'self'; form-action 'self';
 ```
 
 `data:` is for thumbhash placeholders; `blob:` for downloads/previews if the
-server returns blob URLs. Production builds contain no MSW code.
+server returns blob URLs. Production builds contain no MSW code. Playwright runs
+with `bypassCSP` only so the screenshot helper can inject a no-transition style;
+the built pages keep the CSP.
 
 ## Layout
 
@@ -70,21 +82,17 @@ phone smoke (portal → album → viewer → back → portal, 390×844) and writ
 route screenshots to `test-results/screenshots/` for the CI artifact.
 MSW is started only when `VITE_MOCKS=1` at build time.
 
-## Integration notes / OPEN-Q for 1c
+## Integration notes
 
 - Auth is `/s/api/auth/login|logout|session` (httpOnly cookie, path `/s`).
   The admin layout probes `/auth/session`; 401 redirects to `/s?next=…`.
-- Admin album cards need an asset count and up to four covers. Today the client
-  aggregates them from `GET /s/api/album/:slug` + the first bucket page. One
-  enriched admin album shape (count, covers, cameras) would remove N+1 calls.
+- Admin album cards use `GET /s/api/admin/albums`, which already returns
+  `count`, `cameras` and up to three `covers`; the client no longer fans out per
+  album.
 - Folder navigation is id-based (`/admin/folders?parent=<id>`). The edit tree
   auto-expands the first two levels; deeper levels need a lazy expand control.
-- Direct viewer links (`?p=<assetId>`) call `GET /s/api/asset/:id`, which is not
-  in the phase-1c API yet. With the current server only assets already loaded
-  from a bucket resolve. Either add the endpoint or accept that deep links show
-  "Gambar tak dijumpai".
+- Direct viewer links (`/s/<album>?p=<assetId>`) call
+  `GET /s/api/asset/:id?album=<slug>`, with the same scope rules as originals.
 - `GET /s/api/admin/status` exposes assets/pending/lastScan; the dashboard's
   hot-cache, RAM and log cards render `—`/derived values until those optional
   fields exist.
-- Fastify does not yet serve the SPA in `apps/server/src/app.ts`; the contract
-  above (`build/` at `/s`, `index.html` fallback) is what the server must add.

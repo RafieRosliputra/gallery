@@ -3,15 +3,16 @@ import type { Pool } from 'pg';
 import type {
   AlbumCard,
   AlbumResponse,
+  AssetLookupResponse,
   BucketResponse,
   BucketSummary,
   ClientResponse,
   ResolveResponse,
 } from '@gallery/shared';
 import { optionalAdmin, type AuthDeps } from '../auth/routes.js';
-import { bodyRecord, NOT_FOUND_MESSAGE, parseLimit, sendError } from './http.js';
+import { bodyRecord, NOT_FOUND_MESSAGE, parseBigIntId, parseLimit, sendError } from './http.js';
 import { decodeAssetCursor, fetchAssetPage } from './assets-query.js';
-import { findAlbumBySlug, findClientBySlug, albumFolderIds, type AlbumRecord } from './repository.js';
+import { findAlbumBySlug, findClientBySlug, findAssetFile, albumFolderIds, type AlbumRecord } from './repository.js';
 import { toAssetItem } from './rows.js';
 
 export interface PublicApiDeps {
@@ -161,6 +162,38 @@ export function registerPublicRoutes(app: FastifyInstance, deps: PublicApiDeps):
       buckets,
       total: buckets.reduce((sum, bucket) => sum + bucket.count, 0),
       thumbBase: deps.thumbBase,
+    };
+    return reply.header('Cache-Control', 'no-store').send(body);
+  });
+
+  // Viewer deep links (`/s/<album>?p=<assetId>`) resolve one asset. Scope rules
+  // are the same as `GET /s/api/o/:assetId`: an admin session, or the album that
+  // owns the asset's folder. A public caller must name that album.
+  app.get('/s/api/asset/:id', async (request, reply) => {
+    const assetId = parseBigIntId((request.params as { id: string }).id);
+    if (!assetId) return sendError(reply, 400, 'bad_id', 'ID fail tidak sah.');
+
+    const asset = await findAssetFile(deps.pool, assetId);
+    if (!asset) return sendError(reply, 404, 'not_found', NOT_FOUND_MESSAGE);
+
+    const admin = await optionalAdmin(request, deps.auth);
+    const albumSlug = queryText(request.query, 'album');
+    let album: AlbumRecord | null = null;
+    if (albumSlug) {
+      album = await findAlbumBySlug(deps.pool, albumSlug);
+      if (!album) return sendError(reply, 404, 'not_found', NOT_FOUND_MESSAGE);
+    }
+    if (!admin) {
+      if (!album) return sendError(reply, 401, 'unauthorized', 'Sesi tidak sah atau telah tamat.');
+      const folderIds = await albumFolderIds(deps.pool, album.id);
+      if (!folderIds.includes(asset.folder_id)) {
+        return sendError(reply, 403, 'forbidden', 'Fail ini tidak dibenarkan untuk pautan ini.');
+      }
+    }
+
+    const body: AssetLookupResponse = {
+      asset: toAssetItem(asset, deps.thumbBase, album?.slug),
+      albumSlug: album?.slug ?? null,
     };
     return reply.header('Cache-Control', 'no-store').send(body);
   });

@@ -202,7 +202,10 @@ export const ADMIN_ALBUMS = ALBUMS.map((album) => ({
   allowDownload: album.allowDownload,
   clientSlug: album.clientSlug,
   clientName: album.clientName,
-  folderCount: album.folderCount
+  folderCount: album.folderCount,
+  count: album.count,
+  cameras: album.cameras,
+  covers: album.covers.slice(0, 3)
 }));
 
 export const ADMIN_CLIENTS = CLIENT_LIST.map((client) => ({

@@ -16,7 +16,10 @@ export default defineConfig({
     baseURL: BASE_URL,
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
-    reducedMotion: 'reduce'
+    reducedMotion: 'reduce',
+    // The screenshot harness injects a no-transition <style>; the strict CSP
+    // (style-src 'self') would block it. Production pages keep the CSP.
+    bypassCSP: true
   },
   projects: [
     { name: 'desktop', use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } } },

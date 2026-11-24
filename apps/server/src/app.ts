@@ -9,6 +9,7 @@ import { registerOriginalRoutes } from './api/originals.js';
 import { registerPublicRoutes } from './api/public.js';
 import { registerZipRoute } from './api/zip.js';
 import { safeEqualString } from './security.js';
+import { registerWebStatic } from './web/static.js';
 
 export interface AppOptions {
   pool: Pool;
@@ -20,6 +21,8 @@ export interface AppOptions {
   originSecret?: string;
   /** DATA_DIR; defaults to `data` relative to the process cwd (read-only API use). */
   dataDir?: string;
+  /** WEB_DIR; SvelteKit build output, defaults to `apps/web/build` from the process cwd. */
+  webDir?: string;
   sourceRoot?: string;
   thumbBase?: string;
   timezone?: string;
@@ -61,6 +64,7 @@ export function buildApp(options: AppOptions): FastifyInstance {
   });
 
   const dataDir = options.dataDir ?? path.resolve('data');
+  const webDir = options.webDir ?? path.resolve('apps/web/build');
   const thumbBase = (options.thumbBase ?? '/s/t').replace(/\/+$/, '');
   const timezone = options.timezone ?? 'Asia/Kuala_Lumpur';
 
@@ -81,9 +85,11 @@ export function buildApp(options: AppOptions): FastifyInstance {
     pool: options.pool,
     auth,
     timezone,
+    thumbBase,
     r2Enabled: options.r2Enabled ?? false,
     ...(options.triggerScan ? { triggerScan: options.triggerScan } : {}),
   });
+  registerWebStatic(app, { root: webDir });
 
   return app;
 }

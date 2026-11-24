@@ -21,6 +21,23 @@ const config = {
       base: '/s',
       relative: false
     },
+    // Strict CSP without `unsafe-inline`: SvelteKit hashes the inline
+    // bootstrap script it injects into the SPA fallback `index.html`.
+    csp: {
+      mode: 'hash',
+      directives: {
+        'default-src': ['self'],
+        'script-src': ['self'],
+        'style-src': ['self'],
+        'font-src': ['self'],
+        'img-src': ['self', 'data:', 'blob:', 'https://cdn.johorstudio.com'],
+        'connect-src': ['self'],
+        'worker-src': ['self'],
+        'object-src': ['none'],
+        'base-uri': ['self'],
+        'form-action': ['self']
+      }
+    },
     alias: {
       '@gallery/shared': fileURLToPath(new URL('../../packages/shared/src/index.ts', import.meta.url))
     }
