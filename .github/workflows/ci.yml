@@ -115,5 +115,5 @@ jobs:
         run: npm ci
       - name: Typecheck worker
         run: npm run typecheck
-      - name: Test worker (miniflare: R2 + proxy + secrets)
+      - name: Test worker (miniflare R2 + proxy + secrets)
         run: npm test
