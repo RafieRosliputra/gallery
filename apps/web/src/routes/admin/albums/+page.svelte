@@ -8,6 +8,7 @@
 
   let albums = $state<AdminAlbum[]>([]);
   let error = $state('');
+  let loaded = $state(false);
 
   onMount(async () => {
     try {
@@ -15,6 +16,8 @@
     } catch (cause) {
       console.error('album gagal', cause);
       error = 'Senarai album tak dapat dimuatkan.';
+    } finally {
+      loaded = true;
     }
   });
 </script>
@@ -63,8 +66,10 @@
   {/each}
 </div>
 
-{#if !albums.length && !error}
+{#if !loaded}
   <p class="loading" aria-busy="true">Memuatkan album…</p>
+{:else if !albums.length && !error}
+  <p class="loading">Belum ada album. Tekan <a href={`${base}/admin/albums/new`}>+ Album baru</a>, atau pilih folder di Timeline → Folder.</p>
 {/if}
 
 <style>

@@ -7,9 +7,11 @@
   import { formatCount, formatDayMonth } from '$lib/format';
   import JustifiedGrid from '$lib/components/JustifiedGrid.svelte';
   import Photo from '$lib/components/Photo.svelte';
+  import AdminViewer from '$lib/components/AdminViewer.svelte';
 
   let view = $state<AdminFolderView | null>(null);
   let error = $state('');
+  let viewerId = $state<string | null>(null);
 
   const folderId = $derived(page.url.searchParams.get('folder') ?? undefined);
 
@@ -117,7 +119,7 @@
       </div>
 
       <h2 class="loose-head">Gambar terus dalam {view.breadcrumb.at(-1)?.name ?? 'studio'}</h2>
-      <JustifiedGrid assets={view.loose} targetRowHeight={140} gap={4} theme="light" ariaLabel="Gambar dalam folder" />
+      <JustifiedGrid assets={view.loose} targetRowHeight={140} gap={4} theme="light" ariaLabel="Gambar dalam folder" onopen={(id) => (viewerId = id)} />
     {:else if !error}
       <p class="loading" aria-busy="true">Memuatkan folder…</p>
     {/if}
@@ -325,3 +327,7 @@
     }
   }
 </style>
+
+{#if viewerId && view}
+  <AdminViewer items={view.loose} id={viewerId} onclose={() => (viewerId = null)} onchange={(id) => (viewerId = id)} />
+{/if}
