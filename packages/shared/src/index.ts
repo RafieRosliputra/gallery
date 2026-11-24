@@ -85,6 +85,8 @@ export interface AlbumResponse {
   total: number;
   /** Prefix used to build derivative URLs, e.g. `/s/t`. */
   thumbBase: string;
+  /** The request carries an admin session (shows admin-only tools). */
+  viewerIsAdmin?: boolean;
 }
 
 export interface BucketResponse {

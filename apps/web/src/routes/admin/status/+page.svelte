@@ -1,13 +1,18 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import type { AdminStatusView } from '$lib/api/models';
+  import type { AdminStatusView, FolderMoveEntry } from '$lib/api/models';
   import { api } from '$lib/api/client';
-  import { formatBytes, formatCount, formatLocalClock } from '$lib/format';
+  import { formatBytes, formatCount, formatLocalClock, formatShortDate } from '$lib/format';
 
   let status = $state<AdminStatusView | null>(null);
   let error = $state('');
+  let moves = $state<FolderMoveEntry[]>([]);
 
   onMount(async () => {
+    api
+      .getMoves()
+      .then((list) => (moves = list))
+      .catch(() => (moves = []));
     try {
       status = await api.getAdminStatus();
     } catch (cause) {
@@ -138,6 +143,21 @@
     </section>
   {/each}
 </div>
+
+<section class="log">
+  <h2>Folder dipindah</h2>
+  {#each moves as move, index (index)}
+    <div class="log-row move">
+      <span class="time">{formatShortDate(move.movedAt)} {formatLocalClock(move.movedAt)}</span>
+      <span>
+        <strong>{move.from}</strong> → <strong>{move.to}</strong>
+        · {formatCount(move.assets)} gambar{#if move.albums > 0} · {move.albums} album ikut pindah{/if}
+      </span>
+    </div>
+  {:else}
+    <p class="note">Belum ada folder dipindah. Bila folder dipindah (contoh SSD → HDD), ia dikesan di sini dan album ikut ke tempat baru.</p>
+  {/each}
+</section>
 
 <section class="log">
   <h2>Log terkini</h2>

@@ -186,6 +186,9 @@
         onclick: () => void downloadFavourites()
       });
     }
+    if (data.viewerIsAdmin) {
+      items.push({ label: 'Jana thumbnail (admin)', icon: 'refresh', onclick: () => void forceThumbs() });
+    }
     items.push({ label: 'Pergi ke JohorStudio.com', icon: 'globe', href: 'https://johorstudio.com' });
     return items;
   });
@@ -275,6 +278,19 @@
       zipBusy = false;
       window.setTimeout(() => (toast = ''), 3000);
     }
+  }
+
+  async function forceThumbs() {
+    try {
+      const result = await api.forceAlbumThumbs(album.id);
+      toast =
+        result.queued > 0
+          ? `${formatCount(result.queued)} thumbnail didahulukan. Refresh sekejap lagi.`
+          : 'Semua thumbnail dah siap.';
+    } catch {
+      toast = 'Gagal hantar thumbnail.';
+    }
+    window.setTimeout(() => (toast = ''), 4000);
   }
 
   function toggleFavourite(id: string) {

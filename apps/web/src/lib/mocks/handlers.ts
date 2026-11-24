@@ -315,6 +315,32 @@ export const handlers = [
     return new HttpResponse(null, { status: 204 });
   }),
 
+  http.get(`${API}/admin/albums/:id/thumbs`, () =>
+    isAdmin() ? json({ total: 1102, ready: 1040, pending: 62, failed: 0 }) : unauthorised()
+  ),
+
+  http.post(`${API}/admin/albums/:id/thumbs`, () => (isAdmin() ? json({ queued: 62 }) : unauthorised())),
+
+  http.delete(`${API}/admin/albums/:id`, () => (isAdmin() ? new HttpResponse(null, { status: 204 }) : unauthorised())),
+
+  http.delete(`${API}/admin/clients/:id`, () => (isAdmin() ? new HttpResponse(null, { status: 204 }) : unauthorised())),
+
+  http.get(`${API}/admin/moves`, () =>
+    isAdmin()
+      ? json({
+          moves: [
+            {
+              from: 'client-1month/20261112 SRIIN Guru & Kelas',
+              to: 'CLIENT/2026/20261112 SRIIN Guru & Kelas',
+              assets: 842,
+              albums: 1,
+              movedAt: '2026-12-12T02:10:00.000Z'
+            }
+          ]
+        })
+      : unauthorised()
+  ),
+
   http.get(`${API}/admin/clients`, () => (isAdmin() ? json({ clients: ADMIN_CLIENTS }) : unauthorised())),
 
   http.post(`${API}/admin/clients`, async ({ request }) => {

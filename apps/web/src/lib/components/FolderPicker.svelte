@@ -91,6 +91,8 @@
     const out: Row[] = [];
     const walk = (list: PickerFolder[] | undefined, depth: number) => {
       for (const folder of list ?? []) {
+        // Empty folders (e.g. left behind after a move) are hidden unless a rule sits on or under them.
+        if (folder.totalCount === 0 && !rules.some((rule) => covers(folder.path, rule.path))) continue;
         out.push({ folder, depth });
         if (open[folder.id]) walk(children[folder.id], depth + 1);
       }
