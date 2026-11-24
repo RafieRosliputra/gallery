@@ -332,3 +332,7 @@ Conflicts return `409 {error:"slug_conflict"}` with a BM message.
 - `GET /s/api/album/:slug/folders?folder=` → `{ folderId, trail, folders: [{ id, name, count, cover }], assetCount }`; a single top folder is the album top; excluded or empty folders are hidden (404 when asked for directly)
 - `GET /s/api/bucket/f:<folderId>?album=<slug>` is public; the album scope still applies
 - `GET /s/api/o/:id?album=<slug>&view=1` serves the original inline for viewer zoom even when the album's download is off
+
+## Extra source folders (SOURCE_MOUNTS)
+
+`SOURCE_MOUNTS=client-1month=/data/mounts/client-1month` adds a read-only folder as a virtual top-level folder of SOURCE_ROOT: its files are scanned as `client-1month/...`, show in the folder tree and album picker, and resolve back into the mount for thumbnails, originals and ZIPs. A real folder of the same name directly under SOURCE_ROOT is shadowed. Production mounts `/mnt/ssd/client-1month` there (`:ro`, container joins gid 33 www-data to read it).

@@ -1,6 +1,6 @@
 import { opendir, lstat } from 'node:fs/promises';
 import path from 'node:path';
-import { toPosixPath } from './paths.js';
+import { sourceMountsFor, toPosixPath } from './paths.js';
 import { DEFAULT_SCAN_EXCLUDE } from './excludes.js';
 
 export const ALLOWED_EXTENSIONS = new Set(['.jpg', '.jpeg', '.webp']);
@@ -61,11 +61,21 @@ export async function* walkSourceFiles(root: string, options: WalkOptions = {}):
   const excluded = new Set(
     (options.excludeDirectories ?? DEFAULT_SCAN_EXCLUDE).map((name) => name.trim().toLowerCase()),
   );
-  yield* walkDirectory(root, '', null, { ...options, excluded });
+  const mounts = sourceMountsFor(root);
+  const shadowed = new Set(mounts.map((mount) => mount.name));
+  yield* walkDirectory(root, '', null, { ...options, excluded, shadowed });
+  // Each mount appears as a top-level folder named after it.
+  for (const mount of mounts) {
+    for await (const file of walkDirectory(mount.root, '', null, { ...options, excluded, shadowed: new Set() })) {
+      yield { ...file, relativePath: `${mount.name}/${file.relativePath}` };
+    }
+  }
 }
 
 interface ResolvedWalkOptions extends WalkOptions {
   excluded: ReadonlySet<string>;
+  /** Top-level names replaced by a source mount. */
+  shadowed: ReadonlySet<string>;
 }
 
 async function* walkDirectory(
@@ -96,6 +106,7 @@ async function* walkDirectory(
     if (entry.isSymbolicLink()) continue;
     if (entry.isDirectory()) {
       if (isIgnoredDirectoryName(entry.name, options.excluded)) continue;
+      if (relativeDirectory === '' && options.shadowed.has(entry.name)) continue;
       const childRelative = relativeDirectory === '' ? entry.name : path.join(relativeDirectory, entry.name);
       const camera = cameraFromDirectoryName(entry.name) ?? inheritedCamera;
       yield* walkDirectory(root, childRelative, camera, options);
