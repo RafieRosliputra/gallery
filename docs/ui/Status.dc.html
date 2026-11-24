@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="ms">
+<head>
+<meta charset="utf-8">
+<title>Status sistem</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#f5f7f7}
+a{color:#1f6f68;text-decoration:none}a:hover{color:#20272b}
+</style>
+</helmet>
+<div style="display: flex; flex-wrap: wrap; min-height: 100vh; font-family: Archivo, system-ui, sans-serif; color: #20272b; background: #f5f7f7">
+  <nav aria-label="Menu admin" style="flex: 1 1 220px; max-width: 100%; background: #20272b; padding: 24px 16px; box-sizing: border-box; display: flex; flex-direction: column; gap: 28px">
+    <img src="/_blob/74c451021d4a35d09593e5b5a7b7fc56" alt="JohorStudio.com" style="width: 150px; height: auto; margin-left: 8px">
+    <div style="display: flex; flex-direction: column; gap: 4px; font-size: 15px">
+      <a href="Main.dc.html" style="padding: 12px; border-radius: 6px; color: #e2e8e9">Timeline</a>
+      <a href="Albums.dc.html" style="padding: 12px; border-radius: 6px; color: #e2e8e9">Album</a>
+      <a href="Links.dc.html" style="padding: 12px; border-radius: 6px; color: #e2e8e9">Klien</a>
+      <a href="Status.dc.html" style="padding: 12px; border-radius: 6px; background: #1f6f68; color: #ffffff; font-weight: 600">Status sistem</a>
+    </div>
+  </nav>
+
+  <main style="flex: 999 1 560px; min-width: 0; padding: 24px 32px 40px; box-sizing: border-box; display: flex; flex-direction: column; gap: 24px">
+    <header style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px">
+      <h1 style="margin: 0; font-size: 30px; font-weight: 700; font-stretch: 85%">Status sistem</h1>
+      <span style="font-size: 14px; color: #4f5b61">tnas · dikemas kini 22:48</span>
+    </header>
+
+    <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px">
+      <sc-for list="{{cards}}" as="c" hint-placeholder-count="6">
+        <section style="background: #ffffff; border: 1px solid #e2e8e9; border-radius: 6px; padding: 18px; display: flex; flex-direction: column; gap: 12px">
+          <div style="display: flex; justify-content: space-between; align-items: center; gap: 8px">
+            <h2 style="margin: 0; font-size: 15px; font-weight: 600">{{c.title}}</h2>
+            <span style="font-size: 12px; font-weight: 600; padding: 3px 8px; border-radius: 4px; color: {{c.tagInk}}; background: {{c.tagBg}}">{{c.tag}}</span>
+          </div>
+          <span style="font-size: 28px; font-weight: 700; font-stretch: 85%">{{c.big}}</span>
+          <div style="height: 8px; background: #e2e8e9; border-radius: 4px"><div style="width: {{c.pct}}%; height: 8px; background: {{c.bar}}; border-radius: 4px"></div></div>
+          <span style="font-size: 13px; color: #4f5b61">{{c.note}}</span>
+        </section>
+      </sc-for>
+    </div>
+
+    <section style="background: #ffffff; border: 1px solid #e2e8e9; border-radius: 6px; padding: 18px; display: flex; flex-direction: column; gap: 10px">
+      <h2 style="margin: 0; font-size: 15px; font-weight: 600">Log terkini</h2>
+      <sc-for list="{{log}}" as="l" hint-placeholder-count="5">
+        <div style="display: flex; gap: 16px; font-size: 14px; padding: 6px 0; border-top: 1px solid #eef1f1">
+          <span style="flex: 0 0 52px; color: #4f5b61">{{l.t}}</span>
+          <span>{{l.m}}</span>
+        </div>
+      </sc-for>
+    </section>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":780}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const ok = { tag: 'OK', tagInk: '#1f6f68', tagBg: '#e4f4f2', bar: '#1f6f68' };
+    const run = { tag: 'Berjalan', tagInk: '#20272b', tagBg: '#e2e8e9', bar: '#66737a' };
+    const warn = { tag: 'Perhati', tagInk: '#8a2a24', tagBg: '#f8e3e1', bar: '#d6453d' };
+    const off = { tag: 'Fasa 4', tagInk: '#4f5b61', tagBg: '#eef1f1', bar: '#c4ccce' };
+    return {
+      cards: [
+        { ...ok, title: 'Pengimbas folder', big: '128,402', pct: 100, note: 'Watch fail baru aktif · imbas penuh malam 03:00' },
+        { ...run, title: 'Jana thumbnail', big: '312 lagi', pct: 96, note: 'Grid 300px + preview 1600px WebP · ~0.4 s/gambar' },
+        { ...ok, title: 'Push ke R2', big: '128,090', pct: 99, note: 'cdn.johorstudio.com · 0 gagal' },
+        { ...ok, title: 'Hot cache SSD', big: '42 / 80 GB', pct: 52, note: 'Simpan 30 hari · 1,940 fail tamat minggu ni' },
+        { ...warn, title: 'RAM tnas', big: '3.1 GB kosong', pct: 72, note: 'Postgres + app + thumbnail berkongsi 11 GB' },
+        { ...off, title: 'Proses muka', big: 'Belum aktif', pct: 0, note: 'CPU tnas · malam sahaja · album klien sahaja' }
+      ],
+      log: [
+        { t: '22:47', m: '64 gambar baru dikesan dalam CLIENT / Kahwin Aina & Hafiz' },
+        { t: '22:31', m: 'Imbas semula selesai · 0 ralat' },
+        { t: '21:05', m: 'Link /s/aina-hafiz dicipta' },
+        { t: '03:00', m: 'Hot cache: 812 fail dibuang (cukup 30 hari) · 9.6 GB dibebaskan' }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -8,12 +8,17 @@
   },
   "workspaces": [
     "apps/server",
+    "apps/web",
     "packages/shared"
   ],
   "scripts": {
     "build": "tsc -b apps/server",
     "typecheck": "tsc -b apps/server --pretty false && tsc -p tsconfig.test.json --pretty false",
     "test": "vitest run",
+    "test:web": "npm run test -w @gallery/web",
+    "check:web": "npm run check -w @gallery/web",
+    "build:web": "npm run build -w @gallery/web",
+    "test:e2e": "npm run test:e2e -w @gallery/web",
     "db:migrate": "npm run build && node apps/server/dist/migrate-cli.js",
     "scan": "npm run build && node apps/server/dist/scan-cli.js",
     "worker": "npm run build && node apps/server/dist/worker-cli.js",

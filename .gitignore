@@ -13,3 +13,8 @@ coverage/
 # local docker CLI state (sandbox)
 .docker/
 .buildx
+
+# web test artifacts (local)
+apps/web/.playwright-browsers/
+apps/web/test-results/
+apps/web/playwright-report/

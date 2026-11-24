@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="ms">
+<head>
+<meta charset="utf-8">
+<title>Klien dan link</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#f5f7f7}
+a{color:#1f6f68;text-decoration:none}a:hover{color:#20272b}
+</style>
+</helmet>
+<div style="display: flex; flex-wrap: wrap; min-height: 100vh; font-family: Archivo, system-ui, sans-serif; color: #20272b; background: #f5f7f7">
+  <nav aria-label="Menu admin" style="flex: 1 1 220px; max-width: 100%; background: #20272b; padding: 24px 16px; box-sizing: border-box; display: flex; flex-direction: column; gap: 28px">
+    <img src="/_blob/74c451021d4a35d09593e5b5a7b7fc56" alt="JohorStudio.com" style="width: 150px; height: auto; margin-left: 8px">
+    <div style="display: flex; flex-direction: column; gap: 4px; font-size: 15px">
+      <a href="Main.dc.html" style="padding: 12px; border-radius: 6px; color: #e2e8e9">Timeline</a>
+      <a href="Albums.dc.html" style="padding: 12px; border-radius: 6px; color: #e2e8e9">Album</a>
+      <a href="Links.dc.html" style="padding: 12px; border-radius: 6px; background: #1f6f68; color: #ffffff; font-weight: 600">Klien</a>
+      <a href="Status.dc.html" style="padding: 12px; border-radius: 6px; color: #e2e8e9">Status sistem</a>
+    </div>
+  </nav>
+
+  <main style="flex: 999 1 560px; min-width: 0; padding: 24px 32px 40px; box-sizing: border-box; display: flex; flex-direction: column; gap: 24px">
+    <header style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px">
+      <div style="display: flex; flex-direction: column; gap: 4px">
+        <h1 style="margin: 0; font-size: 30px; font-weight: 700; font-stretch: 85%">Klien</h1>
+        <span style="font-size: 14px; color: #4f5b61">1 klien = 1 link portal. Setiap album ada link sendiri untuk klien share kepada customer dia.</span>
+      </div>
+      <button type="button" style="height: 44px; padding: 0 18px; border: 0; border-radius: 6px; background: #1f6f68; color: #ffffff; font: inherit; font-size: 15px; font-weight: 600">+ Klien baru</button>
+    </header>
+
+    <sc-for list="{{clients}}" as="c" hint-placeholder-count="2">
+      <section style="background: #ffffff; border: 1px solid #e2e8e9; border-radius: 6px; overflow: hidden">
+        <div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 18px; background: #fafbfb; border-bottom: 1px solid #e2e8e9">
+          <div style="display: flex; flex-direction: column; gap: 4px">
+            <h2 style="margin: 0; font-size: 19px; font-weight: 700">{{c.name}}</h2>
+            <span style="font-size: 14px; color: #4f5b61">Portal: <span style="color: #20272b; font-weight: 600">johorstudio.com/s/<span style="color: #1f6f68">{{c.slug}}</span></span> · {{c.meta}}</span>
+          </div>
+          <div style="display: flex; gap: 6px">
+            <button type="button" style="height: 38px; padding: 0 12px; border: 1px solid #c4ccce; border-radius: 6px; background: #ffffff; font: inherit; font-size: 13px; color: #20272b">Salin link portal</button>
+            <a href="ClientPortal.dc.html" style="height: 38px; padding: 0 12px; border: 1px solid #c4ccce; border-radius: 6px; font-size: 13px; color: #20272b; display: flex; align-items: center; box-sizing: border-box">Buka</a>
+            <a href="AlbumEdit.dc.html" style="height: 38px; padding: 0 12px; border-radius: 6px; background: #20272b; font-size: 13px; color: #ffffff; display: flex; align-items: center">+ Album</a>
+          </div>
+        </div>
+        <div style="overflow-x: auto">
+          <table style="width: 100%; min-width: 760px; border-collapse: collapse; font-size: 14px">
+            <thead>
+              <tr style="text-align: left; color: #4f5b61; font-size: 13px">
+                <th style="padding: 10px 18px; font-weight: 600">Album</th>
+                <th style="padding: 10px 18px; font-weight: 600">Link album (untuk customer)</th>
+                <th style="padding: 10px 18px; font-weight: 600">Gambar</th>
+                <th style="padding: 10px 18px; font-weight: 600">Kamera</th>
+                <th style="padding: 10px 18px; font-weight: 600">Download</th>
+                <th style="padding: 10px 18px; font-weight: 600"><span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Tindakan</span></th>
+              </tr>
+            </thead>
+            <tbody>
+              <sc-for list="{{c.albums}}" as="a" hint-placeholder-count="3">
+                <tr>
+                  <td style="padding: 12px 18px; border-top: 1px solid #eef1f1; font-weight: 600">{{a.title}}</td>
+                  <td style="padding: 12px 18px; border-top: 1px solid #eef1f1; white-space: nowrap">/s/<span style="color: #1f6f68; font-weight: 600">{{a.slug}}</span></td>
+                  <td style="padding: 12px 18px; border-top: 1px solid #eef1f1">{{a.count}}</td>
+                  <td style="padding: 12px 18px; border-top: 1px solid #eef1f1; color: #4f5b61">{{a.cams}}</td>
+                  <td style="padding: 12px 18px; border-top: 1px solid #eef1f1">{{a.dl}}</td>
+                  <td style="padding: 8px 18px; border-top: 1px solid #eef1f1">
+                    <div style="display: flex; gap: 6px; justify-content: flex-end">
+                      <button type="button" style="height: 36px; padding: 0 12px; border: 1px solid #c4ccce; border-radius: 6px; background: #ffffff; font: inherit; font-size: 13px; color: #20272b">Salin</button>
+                      <a href="AlbumEdit.dc.html" style="height: 36px; padding: 0 12px; border: 1px solid #c4ccce; border-radius: 6px; font-size: 13px; color: #20272b; display: flex; align-items: center; box-sizing: border-box">Edit</a>
+                    </div>
+                  </td>
+                </tr>
+              </sc-for>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </sc-for>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {
+      clients: [
+        { name: 'Tadika Mawar', slug: 'tadika-mawar', meta: '4 album · 3,412 gambar', albums: [
+          { title: 'Konvo 2026', slug: 'mawar-konvo-2026', count: '1,102', cams: 'Cam 1, Cam 2', dl: 'Buka' },
+          { title: 'Hari Sukan 2026', slug: 'mawar-sukan-2026', count: '980', cams: '1 kamera', dl: 'Buka' },
+          { title: 'Sambutan Raya 2026', slug: 'mawar-raya-2026', count: '620', cams: '1 kamera', dl: 'Tutup' },
+          { title: 'Hari Guru 2026', slug: 'mawar-hari-guru-2026', count: '710', cams: 'Cam 1, Cam 2', dl: 'Buka' }
+        ] },
+        { name: 'Aina & Hafiz', slug: 'aina-hafiz', meta: '2 album · 1,382 gambar', albums: [
+          { title: 'Akad nikah', slug: 'aina-hafiz-akad', count: '520', cams: 'Cam 1, Cam 2', dl: 'Buka' },
+          { title: 'Sanding', slug: 'aina-hafiz-sanding', count: '862', cams: 'Cam 1, Cam 2', dl: 'Buka' }
+        ] }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

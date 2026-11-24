@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="ms">
+<head>
+<meta charset="utf-8">
+<title>Admin Timeline folder</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#f5f7f7}
+a{color:#1f6f68;text-decoration:none}a:hover{color:#20272b}
+</style>
+</helmet>
+<div style="display: flex; flex-wrap: wrap; min-height: 100vh; font-family: Archivo, system-ui, sans-serif; color: #20272b; background: #f5f7f7">
+  <nav aria-label="Menu admin" style="flex: 1 1 220px; max-width: 100%; background: #20272b; padding: 24px 16px; box-sizing: border-box; display: flex; flex-direction: column; gap: 28px">
+    <img src="/_blob/74c451021d4a35d09593e5b5a7b7fc56" alt="JohorStudio.com" style="width: 150px; height: auto; margin-left: 8px">
+    <div style="display: flex; flex-direction: column; gap: 4px; font-size: 15px">
+      <a href="Main.dc.html" style="padding: 12px; border-radius: 6px; background: #1f6f68; color: #ffffff; font-weight: 600">Timeline</a>
+      <a href="Albums.dc.html" style="padding: 12px; border-radius: 6px; color: #e2e8e9">Album</a>
+      <a href="Links.dc.html" style="padding: 12px; border-radius: 6px; color: #e2e8e9">Klien</a>
+      <a href="Status.dc.html" style="padding: 12px; border-radius: 6px; color: #e2e8e9">Status sistem</a>
+    </div>
+  </nav>
+
+  <main style="flex: 999 1 560px; min-width: 0; padding: 24px 32px 40px; box-sizing: border-box; display: flex; flex-direction: column; gap: 20px">
+    <header style="display: flex; flex-wrap: wrap; align-items: center; gap: 16px">
+      <h1 style="margin: 0; font-size: 30px; font-weight: 700; font-stretch: 85%">Timeline</h1>
+      <div role="group" aria-label="Mod paparan" style="display: flex; background: #e2e8e9; border-radius: 6px; padding: 3px">
+        <a href="Main.dc.html" style="padding: 8px 16px; border-radius: 4px; color: #4f5b61; font-size: 14px">Tarikh</a>
+        <a href="Folders.dc.html" style="padding: 8px 16px; border-radius: 4px; background: #ffffff; color: #20272b; font-weight: 600; font-size: 14px">Folder</a>
+      </div>
+      <nav aria-label="Laluan folder" style="display: flex; gap: 6px; font-size: 14px; color: #4f5b61; flex-wrap: wrap">
+        <a href="#">studio</a><span aria-hidden="true">/</span><span style="color: #20272b; font-weight: 600">CLIENT</span>
+      </nav>
+    </header>
+
+    <div style="display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start">
+      <aside aria-label="Pokok folder" style="flex: 1 1 220px; max-width: 280px; background: #ffffff; border: 1px solid #e2e8e9; border-radius: 6px; padding: 12px; box-sizing: border-box; font-size: 14px; display: flex; flex-direction: column; gap: 2px">
+        <span style="padding: 6px 8px; font-size: 12px; font-weight: 600; color: #4f5b61; letter-spacing: 0.06em">/mnt/a/studio</span>
+        <a href="#" style="padding: 8px; border-radius: 4px; color: #20272b">BTS</a>
+        <a href="#" style="padding: 8px; border-radius: 4px; background: #e4f4f2; color: #1f6f68; font-weight: 600">CLIENT</a>
+        <a href="#" style="padding: 8px 8px 8px 24px; border-radius: 4px; color: #20272b">Konvo Tadika Mawar 2026</a>
+        <a href="#" style="padding: 8px 8px 8px 24px; border-radius: 4px; color: #20272b">Kahwin Aina &amp; Hafiz</a>
+        <a href="#" style="padding: 8px 8px 8px 24px; border-radius: 4px; color: #20272b">Konvo Tadika Seri Kasih</a>
+        <a href="#" style="padding: 8px 8px 8px 24px; border-radius: 4px; color: #20272b">Annual Dinner Syarikat ABC</a>
+        <a href="#" style="padding: 8px; border-radius: 4px; color: #20272b">PORTFOLIO</a>
+        <a href="#" style="padding: 8px; border-radius: 4px; color: #20272b">PRINT</a>
+        <a href="#" style="padding: 8px; border-radius: 4px; color: #20272b">Raya</a>
+        <a href="#" style="padding: 8px; border-radius: 4px; color: #20272b">RAYA2026_frame</a>
+      </aside>
+
+      <div style="flex: 999 1 480px; min-width: 0; display: flex; flex-direction: column; gap: 16px">
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px">
+          <span style="font-size: 14px; color: #4f5b61">4 folder · 3,180 gambar</span>
+          <a href="AlbumEdit.dc.html" style="height: 40px; padding: 0 14px; border-radius: 6px; background: #20272b; color: #ffffff; font-size: 14px; font-weight: 600; display: flex; align-items: center">+ Buat album dari folder dipilih</a>
+        </div>
+        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px">
+          <sc-for list="{{folders}}" as="f" hint-placeholder-count="4">
+            <a href="#" style="display: flex; flex-direction: column; gap: 10px; background: #ffffff; border: 1px solid #e2e8e9; border-radius: 6px; padding: 10px; color: #20272b">
+              <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 3px">
+                <div style="height: 84px; background: {{f.c1}}; border-radius: 2px"></div>
+                <div style="height: 84px; background: {{f.c2}}; border-radius: 2px"></div>
+                <div style="height: 84px; background: {{f.c3}}; border-radius: 2px"></div>
+                <div style="height: 84px; background: {{f.c4}}; border-radius: 2px"></div>
+              </div>
+              <div style="display: flex; flex-direction: column; gap: 2px; padding: 0 2px 2px">
+                <span style="font-size: 15px; font-weight: 600">{{f.name}}</span>
+                <span style="font-size: 13px; color: #4f5b61">{{f.meta}}</span>
+              </div>
+            </a>
+          </sc-for>
+        </div>
+        <h2 style="margin: 12px 0 0; font-size: 17px; font-weight: 600">Gambar terus dalam CLIENT</h2>
+        <div style="display: flex; gap: 4px">
+          <sc-for list="{{loose}}" as="t" hint-placeholder-count="6">
+            <div style="flex: {{t.g}} 1 0; min-width: 0; height: 140px; background: {{t.c}}; border-radius: 2px"></div>
+          </sc-for>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1040}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {
+      folders: [
+        { name: 'Konvo Tadika Mawar 2026', meta: '1,284 gambar · 24 Nov', c1: '#c9bfb4', c2: '#8f9aa0', c3: '#b7c4bf', c4: '#d8cfc4' },
+        { name: 'Kahwin Aina & Hafiz', meta: '864 gambar · 22 Nov', c1: '#a99c8f', c2: '#e0d6c8', c3: '#6f7b80', c4: '#c4ccc9' },
+        { name: 'Konvo Tadika Seri Kasih', meta: '742 gambar · 15 Nov', c1: '#9fb0a8', c2: '#cfd8d6', c3: '#b9aea2', c4: '#7d8a8f' },
+        { name: 'Annual Dinner Syarikat ABC', meta: '290 gambar · 8 Nov', c1: '#7d8a8f', c2: '#c9bfb4', c3: '#a99c8f', c4: '#b7c4bf' }
+      ],
+      loose: [
+        { g: 3, c: '#b7c4bf' }, { g: 4, c: '#a99c8f' }, { g: 3, c: '#d8cfc4' }, { g: 2, c: '#6f7b80' }, { g: 4, c: '#cfd8d6' }, { g: 3, c: '#9fb0a8' }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>
