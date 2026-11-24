@@ -5,7 +5,7 @@
 ## Decisions (Rafi, 2026-11-24)
 
 - Host: `tnas` (TrueNAS SCALE, 4-core i5-4570, ~11 GB RAM — ~3–4 GB free). Keep footprint small.
-- Formats: jpg, webp, heic. Scale: 100k–500k photos.
+- Formats: jpg, webp. No HEIC (Rafi, 2026-11-25). Scale: 100k–500k photos.
 - Admin entry: `johorstudio.com/s` — password login in app (argon2id, rate-limited).
 - Client portal: `johorstudio.com/s/<client-slug>` — one link per client, lists all their albums. Name slug only, no PIN (Rafi accepts the guessable-link risk).
 - Album link: `johorstudio.com/s/<album-slug>` — own slug, so a client can share one album with their customers. Opened directly it shows that album only: no back link, no other albums.
@@ -24,13 +24,16 @@
 
 - Source (read-only mount): HDD photo root → `/data/source:ro`
 - App data (SSD dataset): `/data/app/{pg,thumbs,hot,tmp}`
-- Derivatives: grid 300px webp + preview 1600px webp + thumbhash (in DB). R2 key `t/<sha1>/<size>.webp`
+- Derivatives: grid height 300px webp + preview long edge 1600px webp (quality ~80, metadata stripped, EXIF orientation applied) + thumbhash base64 (in DB). R2 key `t/<derivKey>/<size>.webp`. Originals are never converted or modified.
 - Originals served from hot cache if present, else source. Originals are never cached on Cloudflare. No video caching on Cloudflare.
 
 ## Data model (minimum)
 
-- `folder(id, path UNIQUE, parent_id)`
-- `asset(id, path UNIQUE, folder_id, camera NULL, size, mtime, sha1, taken_at, w, h, mime, thumbhash, thumb_ok, r2_ok, hot_until)`
+- `folder(id, path UNIQUE, parent_id)` — `path` is relative to SOURCE_ROOT, POSIX, root = `.`
+- `asset(id, path UNIQUE, folder_id, camera NULL, size, mtime, deriv_key, taken_at, w, h, mime, thumbhash, thumb_ok, r2_ok, hot_until, deleted_at)`
+- `deriv_key` = sha1(`relPath` + NUL + `size` + NUL + `mtimeMs`). Full-file hashing was rejected: too slow for 500k photos on HDD. The original is never read for hashing. Path guard: every resolved path must stay inside SOURCE_ROOT.
+- Soft delete: a file missing on the next scan gets `deleted_at = now()`; the row is kept.
+- `scan_run(...)`, `job_error(...)` support `lastScanAt` / `errors24h`.
 - `client(id, name, slug UNIQUE, created_at)`
 - `album(id, client_id, title, slug UNIQUE, allow_download, created_at)`
 - `album_folder(album_id, folder_id, recursive)`
@@ -47,6 +50,7 @@
 - `GET  /s/api/bucket/:key?album=&cam=&cursor=` → asset page (keyset, ≤ 500)
 - `GET  /s/api/buckets?mode=date|folder&album=` → `[{key, count}]` (admin)
 - `GET  /s/api/o/:assetId` → original (hot → source). Allowed for admin, or if asset is in an album the request is scoped to.
+- `GET  /s/api/admin/status` → `{assets, pendingThumbs, pendingR2, lastScanAt, errors24h}`. Phase 1b: only when `ADMIN_OPEN=1`; auth lands in 1c.
 - `POST /s/api/zip {albumSlug, ids?, cam?}` → streamed ZIP, no temp file, respects `allow_download`
 - Admin CRUD: clients, albums, album folders, rescan, status.
 
@@ -64,7 +68,8 @@
 
 ## Phases
 
-1. Scanner (watch + nightly full rescan) · EXIF · thumbnails · R2 push · admin timeline (date + folder) ← start
+1. Scanner (incremental + periodic rescan) · EXIF · thumbnails · R2 push · admin timeline (date + folder) ← current
+   1b: ingest pipeline (scan → DB → WebP → R2). 1c: auth.
 2. Clients + albums (multi-folder) · portal page · album page · camera tabs · downloads · favourites
 3. SSD hot cache 30 d / 80 GB + eviction job
 4. Search filename/date · face grouping
@@ -75,10 +80,10 @@ GitHub Actions → GHCR image → TrueNAS custom app on `tnas` → `cloudflared`
 
 ## Open
 
-1. HEIC: confirm sharp+libheif decodes HEIC inside the image — owner: DeepSeek
-2. CDN domain name for R2 — owner: Rafi
-3. Cloudflare: R2 bucket, tunnel on tnas, Worker route — owner: Rafi approves, CLAUDE prepares
-4. Measure RAM of app + Postgres on tnas in phase 1 — owner: DeepSeek
+1. CDN domain name for R2 — owner: Rafi
+2. Cloudflare: R2 bucket, tunnel on tnas, Worker route — owner: Rafi approves, CLAUDE prepares
+3. Measure RAM of app + Postgres on tnas in phase 1 — owner: DeepSeek
+4. S3 test backend: MinIO public images are no longer pullable (2026); CI uses moto. Revisit for on-NAS testing.
 
 ## UI
 
