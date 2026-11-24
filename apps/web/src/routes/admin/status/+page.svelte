@@ -2,7 +2,7 @@
   import { onMount } from 'svelte';
   import type { AdminStatusView } from '$lib/api/models';
   import { api } from '$lib/api/client';
-  import { formatBytes, formatClock, formatCount } from '$lib/format';
+  import { formatBytes, formatCount, formatLocalClock } from '$lib/format';
 
   let status = $state<AdminStatusView | null>(null);
   let error = $state('');
@@ -21,7 +21,7 @@
     if (!status) return [];
     return [
       {
-        at: status.lastScanAt ? formatClock(status.lastScanAt) : '—',
+        at: status.lastScanAt ? formatLocalClock(status.lastScanAt) : '—',
         message: 'Imbas terakhir selesai'
       },
       {
@@ -120,7 +120,7 @@
 
 <header class="head">
   <h1>Status sistem</h1>
-  <span>tnas · dikemas kini {status?.updatedAt ? formatClock(status.updatedAt) : '—'}</span>
+  <span>tnas · dikemas kini {status?.updatedAt ? formatLocalClock(status.updatedAt) : '—'}</span>
 </header>
 
 {#if error}<p class="error" role="alert">{error}</p>{/if}

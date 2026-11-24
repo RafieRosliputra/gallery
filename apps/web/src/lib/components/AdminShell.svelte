@@ -3,7 +3,7 @@
   import { onMount } from 'svelte';
   import type { AdminStatusView } from '$lib/api/models';
   import { api, isUnauthorised } from '$lib/api/client';
-  import { formatCount } from '$lib/format';
+  import { formatCount, formatLocalClock } from '$lib/format';
   import Icon from './Icon.svelte';
   import Logo from './Logo.svelte';
 
@@ -53,7 +53,7 @@
       <div class="cache-row"><span>Hot cache SSD</span><strong>{hotLabel}</strong></div>
       <div class="bar"><div class="fill" style:width={`${hotPercent}%`}></div></div>
       <span class="muted">Simpan 30 hari, lepas tu buang auto</span>
-      <span class="muted">Imbas terakhir: {status?.lastScanAt ? status.lastScanAt.slice(11, 16) : '—'} · {formatCount(status?.assets)} gambar</span>
+      <span class="muted">Imbas terakhir: {status?.lastScanAt ? formatLocalClock(status.lastScanAt) : '—'} · {formatCount(status?.assets)} gambar</span>
     </div>
   </nav>
 

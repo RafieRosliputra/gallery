@@ -46,7 +46,10 @@ export async function startWorker(options: WorkerOptions): Promise<PgBoss> {
         dataDir: options.dataDir,
         assetId: job.data.assetId,
       });
-      if (result && options.uploader) await enqueueR2Upload(boss, job.data.assetId);
+      if (result && options.uploader) {
+        await enqueueR2Upload(boss, job.data.assetId);
+        await options.pool.query('UPDATE asset SET r2_queued_at = now() WHERE id = $1', [job.data.assetId]);
+      }
     },
   );
 
@@ -84,6 +87,7 @@ async function processR2Job(
       asset.deriv_key,
     ]);
   } catch (error) {
+    console.error(`r2: asset ${asset.id} upload failed: ${(error as Error).message}`);
     await recordJobError(pool, 'r2', (error as Error).message, asset.id);
     throw error;
   }

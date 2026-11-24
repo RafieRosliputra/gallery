@@ -64,6 +64,19 @@ export function formatBytes(bytes: number | null | undefined, fraction = 0): str
   return `${value.toFixed(fraction)} ${units[unit]}`;
 }
 
+const localClock = new Intl.DateTimeFormat('en-GB', {
+  timeZone: 'Asia/Kuala_Lumpur',
+  hour: '2-digit',
+  minute: '2-digit',
+  hour12: false,
+});
+
+/** Wall-clock time in Malaysia for real instants (scan runs, logs), e.g. "02:54". */
+export function formatLocalClock(value: string | Date | null | undefined): string {
+  const date = dateOf(value);
+  return date ? localClock.format(date) : '';
+}
+
 export function formatClock(value: string | Date | null | undefined): string {
   const date = dateOf(value);
   if (!date) return '';

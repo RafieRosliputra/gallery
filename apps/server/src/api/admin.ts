@@ -13,6 +13,8 @@ export interface AdminApiDeps {
   timezone: string;
   thumbBase: string;
   r2Enabled: boolean;
+  /** Lower-case directory names hidden from the folder tree (SCAN_EXCLUDE). */
+  excludeDirectories?: string[];
   triggerScan?: () => Promise<boolean>;
 }
 
@@ -422,8 +424,10 @@ export function registerAdminRoutes(app: FastifyInstance, deps: AdminApiDeps): v
     }
 
     const children = await deps.pool.query<FolderNodeRow>(
-      folderNodeSql('f.parent_id = $1') + ' ORDER BY f.path LIMIT 500',
-      [parent.id],
+      folderNodeSql(
+        `f.parent_id = $1 AND lower(regexp_replace(f.path, '^.*/', '')) <> ALL($2::text[])`,
+      ) + ' ORDER BY f.path LIMIT 500',
+      [parent.id, deps.excludeDirectories ?? []],
     );
     const body: AdminFolderTreeResponse = {
       parent: toFolderNode(parent),

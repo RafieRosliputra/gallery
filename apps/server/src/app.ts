@@ -27,6 +27,8 @@ export interface AppOptions {
   thumbBase?: string;
   timezone?: string;
   r2Enabled?: boolean;
+  /** SCAN_EXCLUDE names (lower-case); hidden from the admin folder tree. */
+  excludeDirectories?: string[];
   triggerScan?: () => Promise<boolean>;
 }
 
@@ -87,6 +89,7 @@ export function buildApp(options: AppOptions): FastifyInstance {
     timezone,
     thumbBase,
     r2Enabled: options.r2Enabled ?? false,
+    excludeDirectories: options.excludeDirectories ?? [],
     ...(options.triggerScan ? { triggerScan: options.triggerScan } : {}),
   });
   registerWebStatic(app, { root: webDir });

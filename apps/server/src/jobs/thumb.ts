@@ -35,7 +35,13 @@ export async function processThumbJob(input: ThumbJobInput): Promise<DerivativeR
     // uploading derivatives for the stale key.
     return updated.rowCount === 1 ? result : null;
   } catch (error) {
-    await recordJobError(input.pool, 'thumb', (error as Error).message, asset.id);
+    const message = (error as Error).message;
+    console.error(`thumb: asset ${asset.id} (${asset.path}) failed: ${message}`);
+    await recordJobError(input.pool, 'thumb', message, asset.id);
+    // Counted so the reconciler stops re-feeding a file that can never be decoded.
+    await input.pool
+      .query('UPDATE asset SET thumb_attempts = thumb_attempts + 1 WHERE id = $1', [asset.id])
+      .catch(() => undefined);
     throw error;
   }
 }
