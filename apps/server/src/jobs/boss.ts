@@ -39,6 +39,7 @@ export async function enqueueThumbnails(boss: PgBoss, assetIds: string[]): Promi
     const ids = await boss.insert(
       QUEUE_THUMB,
       batch.map((assetId) => ({ data: { assetId }, priority: LOW_PRIORITY })),
+      { returnId: true },
     );
     sent += ids?.length ?? 0;
   }
