@@ -77,6 +77,64 @@ jobs:
           -e DATABASE_URL=postgres://gallery:gallery@127.0.0.1:5432/gallery_test
           gallery:ci node scripts/format-check.mjs
 
+      # Boots the real production image against the Postgres service: migrations,
+      # SPA at /s, seeded album, API health. Not a browser run.
+      - name: Image smoke (real image + seeded Postgres)
+        run: |
+          set -euo pipefail
+          cleanup() {
+            docker logs gallery-smoke 2>&1 | tail -40 || true
+            docker rm -f gallery-smoke >/dev/null 2>&1 || true
+          }
+          trap cleanup EXIT
+
+          # Integration tests leave fixtures in the shared slug namespace.
+          docker run --rm --network host \
+            -e DATABASE_URL="$DATABASE_URL" \
+            gallery:ci node scripts/reset-smoke.mjs
+
+          docker run -d --name gallery-smoke --network host \
+            -e DATABASE_URL="$DATABASE_URL" \
+            -e APP_VERSION=ci-smoke \
+            -e SCAN_INTERVAL_MIN=0 \
+            gallery:ci
+
+          for i in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:3000/s/api/health >/tmp/health.json 2>/dev/null; then
+              break
+            fi
+            sleep 1
+          done
+
+          docker exec gallery-smoke node /app/scripts/seed-smoke.mjs
+
+          test "$(curl -s -o /tmp/root.html -w '%{http_code}' http://127.0.0.1:3000/s)" = 200
+          grep -qi '<title>' /tmp/root.html
+          grep -qi 'content-security-policy' /tmp/root.html
+          echo "GET /s -> 200 html title+CSP ok"
+
+          test "$(curl -s -o /tmp/deep.html -w '%{http_code}' http://127.0.0.1:3000/s/tadika-contoh)" = 200
+          grep -qi '<title>' /tmp/deep.html
+          echo "GET /s/tadika-contoh -> 200 html title ok"
+
+          curl -fsS http://127.0.0.1:3000/s/api/health | tee /tmp/health.json
+          grep -q '"db":"up"' /tmp/health.json
+          echo "GET /s/api/health -> json db up"
+
+          curl -fsS http://127.0.0.1:3000/s/api/resolve/tadika-contoh | tee /tmp/resolve.json
+          grep -q '"kind":"album"' /tmp/resolve.json
+          curl -fsS http://127.0.0.1:3000/s/api/album/tadika-contoh | tee /tmp/album.json
+          grep -q '"total":1' /tmp/album.json
+          echo "seeded album tadika-contoh -> resolve 200, total 1"
+
+          test "$(curl -s -o /tmp/xyz.html -w '%{http_code}' http://127.0.0.1:3000/s/xyz)" = 200
+          grep -qi '<title>' /tmp/xyz.html
+          echo "GET /s/xyz -> 200 html (SPA fallback)"
+
+          test "$(curl -s -o /tmp/api-miss -w '%{http_code}' http://127.0.0.1:3000/s/api/nope)" = 404
+          ! grep -qi '<title>' /tmp/api-miss
+          echo "GET /s/api/nope -> 404 json (no SPA fallback)"
+
       - name: Report image size
         run: |
           docker image inspect -f '{{.Size}}' gallery:ci \
