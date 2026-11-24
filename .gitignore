@@ -13,3 +13,6 @@ coverage/
 # local docker CLI state (sandbox)
 .docker/
 .buildx
+
+# Cloudflare local state
+.wrangler/

@@ -1,5 +1,9 @@
 # deploy
 
-Phase 1 keeps deployment out of scope: no compose file, no cloudflared config,
-no TrueNAS app definition yet. Those land with the deploy task once the scanner
-and web app exist (AGENTS §4, `docs/SPEC.md` § Deploy).
+- `truenas-compose.yaml` — TrueNAS SCALE custom app: Postgres 16, app (migrations
+  + Fastify), jobs (pg-boss worker), cloudflared. No host ports; every secret is
+  a `${VAR}` placeholder.
+- `RUNBOOK.md` — tunnel, secrets, first app, first admin, first scan, rollback.
+
+The Cloudflare Worker lives in `../worker/`. Rafi approves every change to DNS,
+routes or the live app.

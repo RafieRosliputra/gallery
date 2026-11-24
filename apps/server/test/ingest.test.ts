@@ -14,9 +14,11 @@ import type { Pool } from 'pg';
 import type { PgBoss } from 'pg-boss';
 import sharp from 'sharp';
 import { buildApp } from '../src/app.ts';
+import { createSession } from '../src/auth/sessions.ts';
 import { loadR2Config, type R2Config } from '../src/config.ts';
 import { createBoss, enqueueThumbnails, ensureQueues } from '../src/jobs/boss.ts';
 import { startWorker } from '../src/jobs/worker.ts';
+import { createS3Uploader } from '../src/r2/uploader.ts';
 import { derivativeKey } from '../src/scan/deriv-key.ts';
 import { assertOutsideSource, resolveInside } from '../src/scan/paths.ts';
 import { scanLibrary } from '../src/scan/scanner.ts';
@@ -174,24 +176,27 @@ describe('ingest pipeline', () => {
     }
   });
 
-  it('exposes admin status only with ADMIN_OPEN', async () => {
-    const app = buildApp({ pool, version: 'test', adminOpen: true });
+  it('requires an admin session for status and reports r2 state', async () => {
+    const admin = await pool.query<{ id: string }>(
+      "INSERT INTO admin (username, pw_hash) VALUES ('status-admin', 'unused') RETURNING id",
+    );
+    const session = await createSession(pool, admin.rows[0]?.id ?? '');
+    const app = buildApp({ pool, version: 'test', r2Enabled: Boolean(r2) });
     try {
-      const response = await app.inject({ method: 'GET', url: '/s/api/admin/status' });
+      const anonymous = await app.inject({ method: 'GET', url: '/s/api/admin/status' });
+      expect(anonymous.statusCode).toBe(401);
+
+      const response = await app.inject({
+        method: 'GET',
+        url: '/s/api/admin/status',
+        headers: { cookie: `gallery_session=${session.token}` },
+      });
       expect(response.statusCode).toBe(200);
       const body = response.json();
-      expect(body).toMatchObject({ assets: 4, pendingThumbs: 4, errors24h: 0 });
+      expect(body).toMatchObject({ assets: 4, pendingThumbs: 4, errors24h: 0, r2Enabled: Boolean(r2) });
       expect(body.lastScanAt).toEqual(expect.any(String));
     } finally {
       await app.close();
-    }
-
-    const closed = buildApp({ pool, version: 'test', adminOpen: false });
-    try {
-      const response = await closed.inject({ method: 'GET', url: '/s/api/admin/status' });
-      expect(response.statusCode).toBe(404);
-    } finally {
-      await closed.close();
     }
   });
 
@@ -202,7 +207,7 @@ describe('ingest pipeline', () => {
       sourceRoot,
       dataDir,
       thumbConcurrency: 2,
-      ...(r2 ? { r2 } : {}),
+      ...(r2 ? { uploader: createS3Uploader(r2) } : {}),
     });
 
     await waitFor(async () => {

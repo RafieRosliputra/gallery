@@ -1,0 +1,124 @@
+import type { Pool } from 'pg';
+import type { AssetRow } from './rows.js';
+
+export interface ClientRecord {
+  id: string;
+  name: string;
+  slug: string;
+}
+
+export interface AlbumRecord {
+  id: string;
+  clientId: string;
+  title: string;
+  slug: string;
+  allowDownload: boolean;
+  clientSlug: string;
+  clientName: string;
+}
+
+interface ClientRow {
+  id: string;
+  name: string;
+  slug: string;
+}
+
+interface AlbumRow {
+  id: string;
+  client_id: string;
+  title: string;
+  slug: string;
+  allow_download: boolean;
+  client_slug: string;
+  client_name: string;
+}
+
+function toClient(row: ClientRow): ClientRecord {
+  return { id: row.id, name: row.name, slug: row.slug };
+}
+
+function toAlbum(row: AlbumRow): AlbumRecord {
+  return {
+    id: row.id,
+    clientId: row.client_id,
+    title: row.title,
+    slug: row.slug,
+    allowDownload: row.allow_download,
+    clientSlug: row.client_slug,
+    clientName: row.client_name,
+  };
+}
+
+export async function findClientBySlug(pool: Pool, slug: string): Promise<ClientRecord | null> {
+  const { rows } = await pool.query<ClientRow>('SELECT id, name, slug FROM client WHERE slug = $1', [slug]);
+  const row = rows[0];
+  return row ? toClient(row) : null;
+}
+
+export async function findClientById(pool: Pool, id: string): Promise<ClientRecord | null> {
+  const { rows } = await pool.query<ClientRow>('SELECT id, name, slug FROM client WHERE id = $1', [id]);
+  const row = rows[0];
+  return row ? toClient(row) : null;
+}
+
+export async function findAlbumBySlug(pool: Pool, slug: string): Promise<AlbumRecord | null> {
+  const { rows } = await pool.query<AlbumRow>(
+    `SELECT a.id, a.client_id, a.title, a.slug, a.allow_download,
+            c.slug AS client_slug, c.name AS client_name
+     FROM album a JOIN client c ON c.id = a.client_id
+     WHERE a.slug = $1`,
+    [slug],
+  );
+  const row = rows[0];
+  return row ? toAlbum(row) : null;
+}
+
+export async function findAlbumById(pool: Pool, id: string): Promise<AlbumRecord | null> {
+  const { rows } = await pool.query<AlbumRow>(
+    `SELECT a.id, a.client_id, a.title, a.slug, a.allow_download,
+            c.slug AS client_slug, c.name AS client_name
+     FROM album a JOIN client c ON c.id = a.client_id
+     WHERE a.id = $1`,
+    [id],
+  );
+  const row = rows[0];
+  return row ? toAlbum(row) : null;
+}
+
+/**
+ * Folder ids covered by an album. A non-recursive album_folder row selects the
+ * folder itself; a recursive row selects it and every descendant. The root
+ * folder `.` covers the whole library.
+ */
+export async function albumFolderIds(pool: Pool, albumId: string): Promise<string[]> {
+  const { rows } = await pool.query<{ id: string }>(
+    `SELECT DISTINCT f.id
+     FROM album_folder af
+     JOIN folder root ON root.id = af.folder_id
+     JOIN folder f ON f.id = root.id
+       OR (af.recursive AND (root.path = '.' OR starts_with(f.path, root.path || '/')))
+     WHERE af.album_id = $1`,
+    [albumId],
+  );
+  return rows.map((row) => row.id);
+}
+
+export interface AssetFileRow extends AssetRow {
+  path: string;
+  hot_until: Date | null;
+  folder_id: string;
+}
+
+export async function findAssetFile(pool: Pool, id: string): Promise<AssetFileRow | null> {
+  const { rows } = await pool.query<AssetFileRow>(
+    `SELECT id, deriv_key, w, h, taken_at, camera, thumbhash, mime, path, hot_until, folder_id
+     FROM asset WHERE id = $1 AND deleted_at IS NULL`,
+    [id],
+  );
+  return rows[0] ?? null;
+}
+
+export async function assetInAlbum(pool: Pool, assetFolderId: string, albumId: string): Promise<boolean> {
+  const folderIds = await albumFolderIds(pool, albumId);
+  return folderIds.includes(assetFolderId);
+}

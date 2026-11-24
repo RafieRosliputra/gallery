@@ -1,17 +1,51 @@
+import path from 'node:path';
 import Fastify, { type FastifyInstance } from 'fastify';
+import cookie from '@fastify/cookie';
 import type { Pool } from 'pg';
-import type { AdminStatusResponse, HealthResponse } from '@gallery/shared';
+import type { HealthResponse } from '@gallery/shared';
+import { registerAuthRoutes, type AuthDeps } from './auth/routes.js';
+import { registerAdminRoutes } from './api/admin.js';
+import { registerOriginalRoutes } from './api/originals.js';
+import { registerPublicRoutes } from './api/public.js';
+import { registerZipRoute } from './api/zip.js';
+import { safeEqualString } from './security.js';
 
 export interface AppOptions {
   pool: Pool;
   version: string;
   logger?: boolean | { level: string };
-  /** Phase 1b: /s/api/admin/status has no auth yet, so it stays closed by default. */
-  adminOpen?: boolean;
+  /** Default true: the Worker/cloudflared sits in front of Fastify. */
+  trustProxy?: boolean;
+  /** When set, every request except /s/api/health must carry X-Origin-Secret. */
+  originSecret?: string;
+  /** DATA_DIR; defaults to `data` relative to the process cwd (read-only API use). */
+  dataDir?: string;
+  sourceRoot?: string;
+  thumbBase?: string;
+  timezone?: string;
+  r2Enabled?: boolean;
+  triggerScan?: () => Promise<boolean>;
 }
 
 export function buildApp(options: AppOptions): FastifyInstance {
-  const app = Fastify({ logger: options.logger ?? false });
+  const trustProxy = options.trustProxy ?? true;
+  const app = Fastify({ logger: options.logger ?? false, trustProxy });
+
+  void app.register(cookie);
+
+  const auth: AuthDeps = { pool: options.pool, trustProxy };
+
+  if (options.originSecret) {
+    const secret = options.originSecret;
+    app.addHook('onRequest', async (request, reply) => {
+      const pathname = request.raw.url?.split('?')[0] ?? '';
+      if (pathname === '/s/api/health') return;
+      const header = request.headers['x-origin-secret'];
+      if (typeof header !== 'string' || !safeEqualString(header, secret)) {
+        return reply.code(403).send({ error: 'forbidden', message: 'Permintaan hanya melalui johorstudio.com.' });
+      }
+    });
+  }
 
   app.get('/s/api/health', async (request, reply) => {
     let db: HealthResponse['db'] = 'down';
@@ -26,38 +60,29 @@ export function buildApp(options: AppOptions): FastifyInstance {
     return reply.code(db === 'up' ? 200 : 503).send(body);
   });
 
-  app.get('/s/api/admin/status', async (request, reply) => {
-    if (options.adminOpen !== true) return reply.code(404).send({ error: 'not found' });
+  const dataDir = options.dataDir ?? path.resolve('data');
+  const thumbBase = (options.thumbBase ?? '/s/t').replace(/\/+$/, '');
+  const timezone = options.timezone ?? 'Asia/Kuala_Lumpur';
 
-    try {
-      const { rows } = await options.pool.query<{
-        assets: number;
-        pending_thumbs: number;
-        pending_r2: number;
-        last_scan_at: Date | null;
-        errors24h: number;
-      }>(
-        `SELECT
-           (SELECT count(*) FROM asset WHERE deleted_at IS NULL)::int AS assets,
-           (SELECT count(*) FROM asset WHERE deleted_at IS NULL AND thumb_ok = false)::int AS pending_thumbs,
-           (SELECT count(*) FROM asset WHERE deleted_at IS NULL AND thumb_ok = true AND r2_ok = false)::int AS pending_r2,
-           (SELECT max(finished_at) FROM scan_run) AS last_scan_at,
-           (SELECT count(*) FROM job_error WHERE created_at > now() - interval '24 hours')::int AS errors24h`,
-      );
-      const row = rows[0];
-      if (!row) throw new Error('status query returned no rows');
-      const body: AdminStatusResponse = {
-        assets: row.assets,
-        pendingThumbs: row.pending_thumbs,
-        pendingR2: row.pending_r2,
-        lastScanAt: row.last_scan_at ? row.last_scan_at.toISOString() : null,
-        errors24h: row.errors24h,
-      };
-      return reply.send(body);
-    } catch (error) {
-      request.log.error({ err: error }, 'status query failed');
-      return reply.code(503).send({ error: 'status unavailable' });
-    }
+  registerAuthRoutes(app, auth);
+  registerPublicRoutes(app, { pool: options.pool, auth, thumbBase, timezone });
+  registerOriginalRoutes(app, {
+    pool: options.pool,
+    auth,
+    dataDir,
+    ...(options.sourceRoot ? { sourceRoot: options.sourceRoot } : {}),
+  });
+  registerZipRoute(app, {
+    pool: options.pool,
+    dataDir,
+    ...(options.sourceRoot ? { sourceRoot: options.sourceRoot } : {}),
+  });
+  registerAdminRoutes(app, {
+    pool: options.pool,
+    auth,
+    timezone,
+    r2Enabled: options.r2Enabled ?? false,
+    ...(options.triggerScan ? { triggerScan: options.triggerScan } : {}),
   });
 
   return app;
