@@ -2,6 +2,7 @@ import { HttpResponse, http } from 'msw';
 import type {
   AdminFolderTreeResponse,
   AdminSessionResponse,
+  AlbumFolderResponse,
   AlbumResponse,
   AlbumSummary,
   BucketResponse,
@@ -81,6 +82,38 @@ function pageOf(assets: ReturnType<typeof folderAssets>, cursorRaw: string | nul
   return { page, nextCursor: cursor + limit < assets.length ? String(cursor + limit) : null };
 }
 
+/** Mock albums navigate by camera folders: folder N = camera N, folder 0 = the whole album. */
+function albumAssets(album: (typeof ALBUMS)[number], folder: number): AssetItem[] {
+  const all = [...(ASSETS_BY_ALBUM.get(album.slug)?.values() ?? [])].flat();
+  if (folder === 0) return all;
+  const camera = album.cameras[folder - 1];
+  return all.filter((asset) => asset.camera === camera);
+}
+
+function albumFolders(album: (typeof ALBUMS)[number], folder: string | null): AlbumFolderResponse | null {
+  if (album.cameras.length < 2) {
+    if (folder && folder !== '0') return null;
+    return { folderId: '0', trail: [], folders: [], assetCount: album.count };
+  }
+  if (!folder) {
+    return {
+      folderId: null,
+      trail: [],
+      folders: album.cameras.map((camera, index) => ({
+        id: String(index + 1),
+        name: camera,
+        count: cameraTotal(album, camera),
+        cover: albumAssets(album, index + 1)[0] ?? null
+      })),
+      assetCount: 0
+    };
+  }
+  const index = Number(folder);
+  const camera = album.cameras[index - 1];
+  if (!camera) return null;
+  return { folderId: folder, trail: [{ id: folder, name: camera }], folders: [], assetCount: cameraTotal(album, camera) };
+}
+
 export const handlers = [
   http.get(`${API}/resolve/:slug`, ({ params }) => {
     const slug = String(params.slug);
@@ -118,6 +151,14 @@ export const handlers = [
     return json(albumResponse(album, cam));
   }),
 
+  http.get(`${API}/album/:slug/folders`, ({ params, request }) => {
+    const album = albumBySlug(String(params.slug));
+    if (!album) return json({ error: 'not_found', message: 'Album tak dijumpai.' }, 404);
+    const view = albumFolders(album, new URL(request.url).searchParams.get('folder'));
+    if (!view) return json({ error: 'not_found', message: 'Folder tak dijumpai.' }, 404);
+    return json(view);
+  }),
+
   http.get(`${API}/bucket/:key`, ({ params, request }) => {
     const url = new URL(request.url);
     const albumSlug = url.searchParams.get('album');
@@ -134,7 +175,8 @@ export const handlers = [
     if (albumSlug) {
       const album = albumBySlug(albumSlug);
       if (!album) return json({ error: 'not_found', message: 'Album tak dijumpai.' }, 404);
-      assets = ASSETS_BY_ALBUM.get(album.slug)?.get(key) ?? [];
+      const folderKey = /^f:(\d+)$/.exec(key);
+      assets = folderKey ? albumAssets(album, Number(folderKey[1])) : (ASSETS_BY_ALBUM.get(album.slug)?.get(key) ?? []);
       if (cam && cam !== 'all') assets = assets.filter((asset) => asset.camera === cam);
     } else {
       if (!isAdmin()) return unauthorised();
@@ -234,9 +276,26 @@ export const handlers = [
       folders: ids.map((folderId) => ({
         folderId,
         path: folderNode(folderId)?.path ?? '',
-        recursive: true
+        recursive: true,
+        included: true
       }))
     });
+  }),
+
+  http.put(`${API}/admin/albums/:id/folders`, async ({ params, request }) => {
+    if (!isAdmin()) return unauthorised();
+    const input = (await request.json()) as { rules?: { folderId: string; included: boolean }[] };
+    const rules = input.rules ?? [];
+    ALBUM_FOLDER_IDS[String(params.id)] = rules.filter((rule) => rule.included).map((rule) => rule.folderId);
+    return json({ rules: rules.length, assetCount: 0, folderCount: 0 });
+  }),
+
+  http.post(`${API}/admin/scope-preview`, async ({ request }) => {
+    if (!isAdmin()) return unauthorised();
+    const input = (await request.json()) as { rules?: { folderId: string; included: boolean }[] };
+    const included = (input.rules ?? []).filter((rule) => rule.included);
+    const assetCount = included.reduce((sum, rule) => sum + (folderNode(rule.folderId)?.totalCount ?? 0), 0);
+    return json({ assetCount, folderCount: included.length });
   }),
 
   http.post(`${API}/admin/albums/:id/folders`, async ({ params, request }) => {

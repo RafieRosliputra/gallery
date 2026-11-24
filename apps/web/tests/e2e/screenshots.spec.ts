@@ -76,6 +76,11 @@ test.describe('screenshots', () => {
     await expect(page.locator('a.back-mobile')).toHaveCount(0);
     await shot(page, info, 'album-direct');
 
+    await page.goto(`${BASE}/mawar-konvo-2026?f=1`);
+    await settle(page);
+    await expect(page.getByRole('button', { name: 'Buka gambar' }).first()).toBeVisible();
+    await shot(page, info, 'album-folder');
+
     await page.goto(`${BASE}/mawar-konvo-2026?p=mawar-konvo-2026--pagi-4`);
     await settle(page);
     await expect(page.getByRole('dialog', { name: 'Lihat gambar' })).toBeVisible();
