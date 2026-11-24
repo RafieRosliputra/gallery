@@ -8,3 +8,12 @@ export interface HealthResponse {
   version: string;
   db: 'up' | 'down';
 }
+
+/** Response body of `GET /s/api/admin/status` (phase 1b; auth lands in 1c). */
+export interface AdminStatusResponse {
+  assets: number;
+  pendingThumbs: number;
+  pendingR2: number;
+  lastScanAt: string | null;
+  errors24h: number;
+}

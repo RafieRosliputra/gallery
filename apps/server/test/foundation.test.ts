@@ -2,46 +2,15 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { Pool } from 'pg';
 import type { FastifyInstance } from 'fastify';
 import { buildApp } from '../src/app.ts';
+import { createPool, requireTestDatabaseUrl, resetAndMigrate } from './helpers/db.ts';
 import { runMigrations } from '../src/migrate.ts';
-
-const databaseUrl = process.env.DATABASE_URL;
-
-function requireTestDatabaseUrl(): string {
-  if (!databaseUrl) {
-    throw new Error('DATABASE_URL is required for integration tests (see .env.example)');
-  }
-  const databaseName = new URL(databaseUrl).pathname.replace(/^\//, '');
-  if (!databaseName.endsWith('_test')) {
-    throw new Error(
-      `refusing to run destructive tests against database "${databaseName}" (name must end with _test)`,
-    );
-  }
-  return databaseUrl;
-}
-
-async function resetAndMigrate(): Promise<string[]> {
-  const url = requireTestDatabaseUrl();
-  const pool = new Pool({ connectionString: url });
-  try {
-    await pool.query('DROP SCHEMA IF EXISTS public CASCADE');
-    await pool.query('CREATE SCHEMA public');
-  } finally {
-    await pool.end();
-  }
-  const { applied } = await runMigrations({ databaseUrl: url });
-  return applied;
-}
-
-function createPool(): Pool {
-  return new Pool({ connectionString: requireTestDatabaseUrl(), max: 4 });
-}
 
 describe('db/migrations/001_init.sql', () => {
   let pool: Pool;
 
   beforeAll(async () => {
     const applied = await resetAndMigrate();
-    expect(applied).toEqual(['001_init.sql']);
+    expect(applied).toEqual(['001_init.sql', '002_ingest.sql']);
     pool = createPool();
   });
 
@@ -61,6 +30,8 @@ describe('db/migrations/001_init.sql', () => {
       'asset',
       'client',
       'folder',
+      'job_error',
+      'scan_run',
       'schema_migrations',
       'slug_registry',
     ]);
@@ -69,7 +40,7 @@ describe('db/migrations/001_init.sql', () => {
   it('is idempotent on a second run', async () => {
     const result = await runMigrations({ databaseUrl: requireTestDatabaseUrl() });
     expect(result.applied).toEqual([]);
-    expect(result.alreadyApplied).toBe(1);
+    expect(result.alreadyApplied).toBe(2);
   });
 
   it('rejects slugs outside [a-z0-9-]{3,60}', async () => {
