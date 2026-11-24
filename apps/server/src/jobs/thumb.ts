@@ -26,12 +26,14 @@ export async function processThumbJob(input: ThumbJobInput): Promise<DerivativeR
       dataDir: input.dataDir,
       derivKey: asset.deriv_key,
     });
-    await input.pool.query(
+    const updated = await input.pool.query(
       `UPDATE asset SET thumbhash = $2, thumb_ok = true, scanned_at = now()
        WHERE id = $1 AND deriv_key = $3`,
       [asset.id, result.thumbhash, asset.deriv_key],
     );
-    return result;
+    // The file changed under us: leave the new deriv_key queued instead of
+    // uploading derivatives for the stale key.
+    return updated.rowCount === 1 ? result : null;
   } catch (error) {
     await recordJobError(input.pool, 'thumb', (error as Error).message, asset.id);
     throw error;
