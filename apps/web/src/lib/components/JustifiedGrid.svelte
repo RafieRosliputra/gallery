@@ -46,6 +46,7 @@
             <button
               type="button"
               class="tile"
+              data-asset-id={tile.id}
               style:width={`${tile.width}px`}
               aria-label="Buka gambar"
               onclick={() => onopen?.(tile.id)}
@@ -56,7 +57,7 @@
               {/if}
             </button>
           {:else}
-            <div class="tile" style:width={`${tile.width}px`}>
+            <div class="tile" data-asset-id={tile.id} style:width={`${tile.width}px`}>
               <Photo {asset} {theme} />
               {#if favouriteIds.has(tile.id)}
                 <span class="heart" aria-hidden="true"><Icon name="heart" size={18} fill="currentColor" /></span>

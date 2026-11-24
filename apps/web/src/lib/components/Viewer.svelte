@@ -11,6 +11,7 @@
   import MoreMenu from './MoreMenu.svelte';
   import type { MenuItem } from './menu';
   import Photo from './Photo.svelte';
+  import PhotoStage from './PhotoStage.svelte';
 
   let {
     items,
@@ -36,7 +37,7 @@
 
   let menuOpen = $state(false);
   let toast = $state('');
-  let touchStart = $state<{ x: number; y: number } | null>(null);
+  let chrome = $state(true);
   let dialog: HTMLDivElement | undefined = $state();
 
   const index = $derived(items.findIndex((item) => item.id === id));
@@ -70,12 +71,6 @@
       if (event.key === 'Escape') {
         if (menuOpen) menuOpen = false;
         else onclose();
-      } else if (event.key === 'ArrowRight') {
-        event.preventDefault();
-        step(1);
-      } else if (event.key === 'ArrowLeft') {
-        event.preventDefault();
-        step(-1);
       }
     };
     window.addEventListener('keydown', onKey);
@@ -86,34 +81,9 @@
     };
   });
 
-  $effect(() => {
-    // Preload neighbours so swiping feels immediate.
-    for (const offset of [-1, 1]) {
-      const neighbour = items[index + offset];
-      if (neighbour) {
-        const image = new Image();
-        image.src = neighbour.previewUrl;
-      }
-    }
-  });
-
   function step(delta: number) {
     const next = items[index + delta];
     if (next) onchange(next.id);
-  }
-
-  function onTouchStart(event: TouchEvent) {
-    const touch = event.changedTouches[0];
-    touchStart = { x: touch.clientX, y: touch.clientY };
-  }
-
-  function onTouchEnd(event: TouchEvent) {
-    if (!touchStart) return;
-    const touch = event.changedTouches[0];
-    const dx = touch.clientX - touchStart.x;
-    const dy = touch.clientY - touchStart.y;
-    touchStart = null;
-    if (Math.abs(dx) > 48 && Math.abs(dx) > Math.abs(dy) * 1.2) step(dx < 0 ? 1 : -1);
   }
 
   async function share() {
@@ -141,7 +111,7 @@
   tabindex="-1"
   bind:this={dialog}
 >
-  <header class="bar">
+  <header class="bar" class:hidden={!chrome}>
     <button type="button" class="back" aria-label="Kembali ke galeri" onclick={onclose}>
       <Icon name="back" size={22} strokeWidth={2} />
     </button>
@@ -169,20 +139,20 @@
     <MoreMenu open={menuOpen} onclose={() => (menuOpen = false)} items={menu} />
   </header>
 
-  <div class="stage" role="group" aria-label="Gambar" ontouchstart={onTouchStart} ontouchend={onTouchEnd}>
-    {#if active}
-      <img
-        src={active.previewUrl}
-        alt={`Gambar ${index + 1} daripada ${formatCount(total)}`}
-        class="full"
-        draggable="false"
-      />
-    {:else}
-      <p class="missing">Gambar tak dijumpai.</p>
-    {/if}
-  </div>
+  {#if active}
+    <PhotoStage
+      {items}
+      {index}
+      onstep={step}
+      {onclose}
+      ontap={() => (chrome = !chrome)}
+      label={`Gambar ${index + 1} daripada ${formatCount(total)}`}
+    />
+  {:else}
+    <p class="missing">Gambar tak dijumpai.</p>
+  {/if}
 
-  <div class="bottom">
+  <div class="bottom" class:hidden={!chrome}>
     <span class="counter">{active ? formatCount(index + 1) : '0'} / {formatCount(total)}</span>
     <div class="strip" role="group" aria-label="Gambar berdekatan">
       {#each strip as item (item.id)}
@@ -219,11 +189,23 @@
   }
 
   .bar {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 2;
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 8px 4px;
-    position: relative;
+    padding: calc(8px + env(safe-area-inset-top)) 4px 28px;
+    background: linear-gradient(rgb(0 0 0 / 0.6), rgb(0 0 0 / 0));
+    transition: opacity 200ms ease-out;
+  }
+
+  .bar.hidden,
+  .bottom.hidden {
+    opacity: 0;
+    pointer-events: none;
   }
 
   .back,
@@ -253,24 +235,8 @@
     align-items: center;
   }
 
-  .stage {
-    flex: 1;
-    min-height: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 0 4px;
-    touch-action: pan-y;
-    user-select: none;
-  }
-
-  .full {
-    width: 100%;
-    height: 100%;
-    object-fit: contain;
-  }
-
   .missing {
+    margin: auto;
     color: var(--muted);
     font-size: 14px;
   }
@@ -280,8 +246,14 @@
     flex-direction: column;
     align-items: center;
     gap: 10px;
-    padding: 8px 8px calc(24px + env(safe-area-inset-bottom));
-    position: relative;
+    padding: 28px 8px calc(24px + env(safe-area-inset-bottom));
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 2;
+    background: linear-gradient(rgb(0 0 0 / 0), rgb(0 0 0 / 0.6));
+    transition: opacity 200ms ease-out;
   }
 
   .counter {
@@ -326,10 +298,6 @@
   @media (min-width: 760px) {
     .bar {
       padding: 12px 16px;
-    }
-
-    .full {
-      max-height: calc(100dvh - 190px);
     }
 
     .bottom {

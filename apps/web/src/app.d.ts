@@ -7,6 +7,10 @@ declare global {
     // interface Locals {}
     // interface PageData {}
     // interface Platform {}
+    interface PageState {
+      /** Admin lightbox is open (shallow history entry so Back closes it). */
+      adminViewer?: boolean;
+    }
   }
 
   interface ImportMetaEnv {
