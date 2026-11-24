@@ -20,6 +20,8 @@ export interface ScanOptions {
   pool: Pool;
   sourceRoot: string;
   dataDir: string;
+  /** Directory names skipped at any depth. Defaults to SCAN_EXCLUDE. */
+  excludeDirectories?: string[];
   /** Called with asset ids that need a fresh thumbnail. */
   onAssetsChanged?: (assetIds: string[]) => Promise<void>;
   logger?: { info: (message: string) => void; error: (message: string) => void };
@@ -49,11 +51,27 @@ interface PendingAsset {
 
 const UPSERT_BATCH_SIZE = 100;
 
+/** CLI, periodic timer and admin rescan all serialize on this Postgres lock. */
+export const SCAN_LOCK_NAME = 'johorstudio-gallery:scan';
+
 /**
  * One incremental pass over SOURCE_ROOT. Read-only against the source tree:
  * the only writes go to Postgres and DATA_DIR/thumbs.
  */
 export async function scanLibrary(options: ScanOptions): Promise<ScanStats> {
+  const lock = await options.pool.connect();
+  try {
+    await lock.query('SELECT pg_advisory_lock(hashtext($1))', [SCAN_LOCK_NAME]);
+    return await scanLibraryLocked(options);
+  } finally {
+    await lock
+      .query('SELECT pg_advisory_unlock(hashtext($1))', [SCAN_LOCK_NAME])
+      .catch((error: unknown) => options.logger?.error(`scan unlock: ${(error as Error).message}`));
+    lock.release();
+  }
+}
+
+async function scanLibraryLocked(options: ScanOptions): Promise<ScanStats> {
   const { pool, sourceRoot, dataDir } = options;
   const startedAt = new Date();
   assertOutsideSource(sourceRoot, dataDir);
@@ -109,6 +127,7 @@ export async function scanLibrary(options: ScanOptions): Promise<ScanStats> {
 
   try {
     for await (const file of walkSourceFiles(sourceRoot, {
+      ...(options.excludeDirectories ? { excludeDirectories: options.excludeDirectories } : {}),
       onError: (absolutePath, error) => {
         walkErrors.push({ path: absolutePath, message: (error as Error).message });
       },

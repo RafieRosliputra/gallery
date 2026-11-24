@@ -23,6 +23,7 @@ try {
     pool,
     sourceRoot: config.sourceRoot,
     dataDir: config.dataDir,
+    excludeDirectories: config.scanExclude,
     onAssetsChanged: async (assetIds) => {
       const queued = await enqueueThumbnails(boss, assetIds);
       console.info(`scan: queued ${queued} thumbnail jobs`);

@@ -9,11 +9,111 @@ export interface HealthResponse {
   db: 'up' | 'down';
 }
 
-/** Response body of `GET /s/api/admin/status` (phase 1b; auth lands in 1c). */
+/** Response body of `GET /s/api/admin/status`. */
 export interface AdminStatusResponse {
   assets: number;
   pendingThumbs: number;
+  /** 0 when R2 is disabled (`R2_MODE=off`). */
   pendingR2: number;
+  r2Enabled: boolean;
   lastScanAt: string | null;
   errors24h: number;
+}
+
+export interface AdminSessionResponse {
+  admin: { id: string; username: string };
+}
+
+export interface ClientSummary {
+  id: string;
+  name: string;
+  slug: string;
+}
+
+export interface AlbumSummary {
+  id: string;
+  clientId: string;
+  title: string;
+  slug: string;
+  allowDownload: boolean;
+}
+
+/** URLs are absolute paths (or a CDN URL when THUMB_BASE is absolute). */
+export interface DerivativeUrls {
+  thumb: string;
+  preview: string;
+}
+
+export interface AssetItem extends DerivativeUrls {
+  id: string;
+  w: number | null;
+  h: number | null;
+  takenAt: string | null;
+  camera: string | null;
+  thumbhash: string | null;
+  mime: string;
+  /** Only present on public endpoints that know the album scope. */
+  original?: string;
+}
+
+export interface BucketSummary {
+  /** `YYYY-MM` for date buckets, `f:<folderId>` for folder buckets. */
+  key: string;
+  label?: string;
+  count: number;
+}
+
+export type ResolveResponse =
+  | { kind: 'client'; client: ClientSummary }
+  | { kind: 'album'; album: AlbumSummary; client: ClientSummary };
+
+export interface AlbumCard extends AlbumSummary {
+  count: number;
+  cover: AssetItem | null;
+}
+
+export interface ClientResponse {
+  client: ClientSummary;
+  albums: AlbumCard[];
+}
+
+export interface AlbumResponse {
+  album: AlbumSummary;
+  client: ClientSummary;
+  cameras: string[];
+  buckets: BucketSummary[];
+  total: number;
+  /** Prefix used to build derivative URLs, e.g. `/s/t`. */
+  thumbBase: string;
+}
+
+export interface BucketResponse {
+  assets: AssetItem[];
+  nextCursor: string | null;
+}
+
+export interface AdminFolderNode {
+  id: string;
+  path: string;
+  name: string;
+  parentId: string | null;
+  assetCount: number;
+  hasChildren: boolean;
+}
+
+export interface AdminFolderTreeResponse {
+  parent: AdminFolderNode | null;
+  folders: AdminFolderNode[];
+}
+
+export interface AdminAlbumFolder {
+  folderId: string;
+  path: string;
+  recursive: boolean;
+}
+
+/** Error body used by every JSON endpoint. */
+export interface ApiError {
+  error: string;
+  message: string;
 }

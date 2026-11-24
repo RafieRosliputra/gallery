@@ -1,6 +1,7 @@
 import { Pool } from 'pg';
 import { loadConfig } from './config.js';
 import { startWorker } from './jobs/worker.js';
+import { createUploader } from './r2/uploader.js';
 
 const config = loadConfig();
 if (!config.sourceRoot) {
@@ -14,17 +15,18 @@ const pool = new Pool({
   connectionTimeoutMillis: 5_000,
 });
 
+const uploader = createUploader(config);
 const boss = await startWorker({
   databaseUrl: config.databaseUrl,
   pool,
   sourceRoot: config.sourceRoot,
   dataDir: config.dataDir,
   thumbConcurrency: config.thumbConcurrency,
-  ...(config.r2 ? { r2: config.r2 } : {}),
+  ...(uploader ? { uploader } : {}),
 });
 
 console.info(
-  `worker: ready thumbConcurrency=${config.thumbConcurrency} r2=${config.r2 ? 'on' : 'off'} ` +
+  `worker: ready thumbConcurrency=${config.thumbConcurrency} r2=${config.r2Mode} ` +
     `dataDir=${config.dataDir}`,
 );
 

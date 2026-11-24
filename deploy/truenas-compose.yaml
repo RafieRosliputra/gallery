@@ -1,0 +1,118 @@
+# TrueNAS SCALE custom app — johorstudio-gallery.
+#
+# Every environment value is a ${VAR} placeholder: render them from the TrueNAS
+# app environment (or a root-owned env file outside git). Never paste a secret
+# into this file. No host ports: cloudflared reaches the app over the compose
+# network and the Worker reaches the tunnel through Workers VPC.
+#
+# Paths are the live NAS layout (AGENTS §8):
+#   source photos  /mnt/a/studio                        :ro  (never written)
+#   app data       /mnt/ssd/johorstudio-gallery/app      (thumbs, hot cache)
+#   postgres data  /mnt/ssd/johorstudio-gallery/pg
+name: johorstudio-gallery
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - /mnt/ssd/johorstudio-gallery/pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+  app:
+    image: ghcr.io/rafierosliputra/gallery:${GALLERY_TAG:-latest}
+    restart: unless-stopped
+    command:
+      - sh
+      - -c
+      - node apps/server/dist/migrate-cli.js && node apps/server/dist/index.js
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: "3000"
+      LOG_LEVEL: ${LOG_LEVEL}
+      APP_VERSION: ${APP_VERSION}
+      DATABASE_URL: ${DATABASE_URL}
+      SOURCE_ROOT: /data/source
+      DATA_DIR: /data/app
+      SCAN_INTERVAL_MIN: ${SCAN_INTERVAL_MIN}
+      SCAN_EXCLUDE: ${SCAN_EXCLUDE}
+      THUMB_CONCURRENCY: ${THUMB_CONCURRENCY}
+      TIMEZONE: ${TIMEZONE}
+      TRUST_PROXY: ${TRUST_PROXY}
+      THUMB_BASE: ${THUMB_BASE}
+      ORIGIN_SECRET: ${ORIGIN_SECRET}
+      R2_MODE: ${R2_MODE}
+      R2_ENDPOINT: ${R2_ENDPOINT}
+      R2_BUCKET: ${R2_BUCKET}
+      R2_ACCESS_KEY_ID: ${R2_ACCESS_KEY_ID}
+      R2_SECRET_ACCESS_KEY: ${R2_SECRET_ACCESS_KEY}
+      R2_REGION: ${R2_REGION}
+      UPLOAD_SECRET: ${UPLOAD_SECRET}
+      WORKER_UPLOAD_URL: ${WORKER_UPLOAD_URL}
+    volumes:
+      - /mnt/a/studio:/data/source:ro
+      - /mnt/ssd/johorstudio-gallery/app:/data/app
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - fetch('http://127.0.0.1:3000/s/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+  # Same image, no HTTP server: pg-boss worker for WebP + R2 uploads.
+  jobs:
+    image: ghcr.io/rafierosliputra/gallery:${GALLERY_TAG:-latest}
+    restart: unless-stopped
+    command: ["node", "apps/server/dist/worker-cli.js"]
+    mem_limit: 768m
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      LOG_LEVEL: ${LOG_LEVEL}
+      APP_VERSION: ${APP_VERSION}
+      DATABASE_URL: ${DATABASE_URL}
+      SOURCE_ROOT: /data/source
+      DATA_DIR: /data/app
+      THUMB_CONCURRENCY: ${THUMB_CONCURRENCY}
+      TIMEZONE: ${TIMEZONE}
+      THUMB_BASE: ${THUMB_BASE}
+      R2_MODE: ${R2_MODE}
+      R2_ENDPOINT: ${R2_ENDPOINT}
+      R2_BUCKET: ${R2_BUCKET}
+      R2_ACCESS_KEY_ID: ${R2_ACCESS_KEY_ID}
+      R2_SECRET_ACCESS_KEY: ${R2_SECRET_ACCESS_KEY}
+      R2_REGION: ${R2_REGION}
+      UPLOAD_SECRET: ${UPLOAD_SECRET}
+      WORKER_UPLOAD_URL: ${WORKER_UPLOAD_URL}
+    volumes:
+      - /mnt/a/studio:/data/source:ro
+      - /mnt/ssd/johorstudio-gallery/app:/data/app
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    restart: unless-stopped
+    command: ["tunnel", "--no-autoupdate", "run"]
+    depends_on:
+      app:
+        condition: service_started
+    environment:
+      TUNNEL_TOKEN: ${TUNNEL_TOKEN}

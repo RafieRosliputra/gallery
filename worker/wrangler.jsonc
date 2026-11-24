@@ -1,0 +1,18 @@
+{
+  // Secrets (set with `wrangler secret put`, never committed): UPLOAD_SECRET, ORIGIN_SECRET
+  "name": "johorstudio-gallery",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-11-01",
+  "workers_dev": false,
+  "routes": [
+    { "pattern": "johorstudio.com/s", "zone_name": "johorstudio.com" },
+    { "pattern": "johorstudio.com/s/*", "zone_name": "johorstudio.com" }
+  ],
+  "vpc_services": [
+    { "binding": "ORIGIN", "service_id": "01a20e58-7af7-7380-a4e8-0536af986045", "remote": true }
+  ],
+  "r2_buckets": [
+    { "binding": "GALLERY", "bucket_name": "johorstudio-gallery" }
+  ],
+  "observability": { "enabled": true }
+}

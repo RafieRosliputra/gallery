@@ -1,6 +1,7 @@
 import { opendir, lstat } from 'node:fs/promises';
 import path from 'node:path';
 import { toPosixPath } from './paths.js';
+import { DEFAULT_SCAN_EXCLUDE } from './excludes.js';
 
 export const ALLOWED_EXTENSIONS = new Set(['.jpg', '.jpeg', '.webp']);
 
@@ -28,8 +29,9 @@ export function isAcceptableImageName(filename: string): boolean {
   return !filename.startsWith('.') && !IGNORED_FILES.has(filename.toLowerCase()) && imageMimeType(filename) !== null;
 }
 
-export function isIgnoredDirectoryName(name: string): boolean {
-  return name.startsWith('.') || IGNORED_DIRECTORIES.has(name.toLowerCase());
+export function isIgnoredDirectoryName(name: string, excluded?: ReadonlySet<string>): boolean {
+  const lower = name.toLowerCase();
+  return name.startsWith('.') || IGNORED_DIRECTORIES.has(lower) || (excluded?.has(lower) ?? false);
 }
 
 const CAMERA_PATTERN = /^cam\s*(\d+)$/i;
@@ -45,6 +47,8 @@ export function isCameraDirectory(name: string): boolean {
 }
 
 export interface WalkOptions {
+  /** Directory names skipped at any depth. Defaults to DEFAULT_SCAN_EXCLUDE. */
+  excludeDirectories?: readonly string[];
   /** Called for unreadable directories/files; walking continues. */
   onError?: (absolutePath: string, error: unknown) => void;
 }
@@ -54,14 +58,21 @@ export interface WalkOptions {
  * dotfiles/`@eaDir`/`Thumbs.db` are skipped, and only .jpg/.jpeg/.webp are yielded.
  */
 export async function* walkSourceFiles(root: string, options: WalkOptions = {}): AsyncGenerator<SourceFile> {
-  yield* walkDirectory(root, '', null, options);
+  const excluded = new Set(
+    (options.excludeDirectories ?? DEFAULT_SCAN_EXCLUDE).map((name) => name.trim().toLowerCase()),
+  );
+  yield* walkDirectory(root, '', null, { ...options, excluded });
+}
+
+interface ResolvedWalkOptions extends WalkOptions {
+  excluded: ReadonlySet<string>;
 }
 
 async function* walkDirectory(
   root: string,
   relativeDirectory: string,
   inheritedCamera: string | null,
-  options: WalkOptions,
+  options: ResolvedWalkOptions,
 ): AsyncGenerator<SourceFile> {
   const absoluteDirectory = relativeDirectory === '' ? root : path.join(root, relativeDirectory);
   let directory;
@@ -84,7 +95,7 @@ async function* walkDirectory(
   for (const entry of entries) {
     if (entry.isSymbolicLink()) continue;
     if (entry.isDirectory()) {
-      if (isIgnoredDirectoryName(entry.name)) continue;
+      if (isIgnoredDirectoryName(entry.name, options.excluded)) continue;
       const childRelative = relativeDirectory === '' ? entry.name : path.join(relativeDirectory, entry.name);
       const camera = cameraFromDirectoryName(entry.name) ?? inheritedCamera;
       yield* walkDirectory(root, childRelative, camera, options);
