@@ -59,8 +59,8 @@
       })
       .catch((cause) => {
         if (cancelled) return;
-        console.error('folder album gagal', cause);
-        viewError = 'Folder tak dapat dimuatkan.';
+        console.error('album folder failed', cause);
+        viewError = 'Could not load this folder.';
       });
     return () => {
       cancelled = true;
@@ -121,7 +121,7 @@
         if (!cancelled) directAssets = { ...directAssets, [id]: response.asset };
       })
       .catch(() => {
-        if (!cancelled) toast = 'Gambar tak dijumpai.';
+        if (!cancelled) toast = 'Photo not found.';
       });
     return () => {
       cancelled = true;
@@ -177,7 +177,7 @@
         });
       }
       if (favIds.length > 0) {
-        items.push({ label: 'Kosongkan senarai', icon: 'trash', onclick: () => favourites.clear() });
+        items.push({ label: 'Clear list', icon: 'trash', onclick: () => favourites.clear() });
       }
     } else if (album.allowDownload && favIds.length > 0) {
       items.push({
@@ -187,9 +187,9 @@
       });
     }
     if (data.viewerIsAdmin) {
-      items.push({ label: 'Jana thumbnail (admin)', icon: 'refresh', onclick: () => void forceThumbs() });
+      items.push({ label: 'Generate thumbnails (admin)', icon: 'refresh', onclick: () => void forceThumbs() });
     }
-    items.push({ label: 'Pergi ke JohorStudio.com', icon: 'globe', href: 'https://johorstudio.com' });
+    items.push({ label: 'Go to JohorStudio.com', icon: 'globe', href: 'https://johorstudio.com' });
     return items;
   });
 
@@ -251,13 +251,13 @@
   async function downloadAll() {
     if (!album.allowDownload || zipBusy) return;
     zipBusy = true;
-    toast = 'Menyediakan ZIP…';
+    toast = 'Preparing ZIP…';
     try {
       const blob = await api.zip({ albumSlug: album.slug });
       downloadBlob(blob, `${album.slug}.zip`);
-      toast = 'Download bermula.';
+      toast = 'Download started.';
     } catch {
-      toast = 'ZIP gagal disediakan.';
+      toast = 'Could not prepare the ZIP.';
     } finally {
       zipBusy = false;
       window.setTimeout(() => (toast = ''), 3000);
@@ -267,13 +267,13 @@
   async function downloadFavourites() {
     if (!album.allowDownload || zipBusy || favIds.length === 0) return;
     zipBusy = true;
-    toast = 'Menyediakan ZIP favourite…';
+    toast = 'Preparing favourites ZIP…';
     try {
       const blob = await api.zip({ albumSlug: album.slug, ids: favIds });
       downloadBlob(blob, `favourite-${album.slug}.zip`);
-      toast = 'Download bermula.';
+      toast = 'Download started.';
     } catch {
-      toast = 'ZIP gagal disediakan.';
+      toast = 'Could not prepare the ZIP.';
     } finally {
       zipBusy = false;
       window.setTimeout(() => (toast = ''), 3000);
@@ -285,10 +285,10 @@
       const result = await api.forceAlbumThumbs(album.id);
       toast =
         result.queued > 0
-          ? `${formatCount(result.queued)} thumbnail didahulukan. Refresh sekejap lagi.`
-          : 'Semua thumbnail dah siap.';
+          ? `${formatCount(result.queued)} thumbnails queued first. Refresh in a moment.`
+          : 'All thumbnails are ready.';
     } catch {
-      toast = 'Gagal hantar thumbnail.';
+      toast = 'Could not queue thumbnails.';
     }
     window.setTimeout(() => (toast = ''), 4000);
   }
@@ -308,7 +308,7 @@
     <div class="top-inner">
       <div class="left">
         {#if favMode}
-          <button type="button" class="back" aria-label="Kembali ke galeri" onclick={closeFavourites}>
+          <button type="button" class="back" aria-label="Back to gallery" onclick={closeFavourites}>
             <Icon name="back" size={22} strokeWidth={2} />
           </button>
           <h1 class="fav-title">Favourite ({favIds.length})</h1>
@@ -336,11 +336,11 @@
             <IconButton label={`Download ${favIds.length} favourite (ZIP)`} name="download" size={23} hit={44} onclick={downloadFavourites} />
           {/if}
         {:else}
-          <IconButton label="Kongsi album ni" name="share" size={21} hit={44} onclick={openShare} />
+          <IconButton label="Share this album" name="share" size={21} hit={44} onclick={openShare} />
           <button
             type="button"
             class="icon-button fav-button"
-            aria-label={`Favourite, ${favIds.length} gambar`}
+            aria-label={`Favourites, ${favIds.length} ${favIds.length === 1 ? 'photo' : 'photos'}`}
             title="Favourite"
             style:width="44px"
             style:height="44px"
@@ -350,10 +350,10 @@
             {#if favIds.length > 0}<span class="badge">{formatCount(favIds.length)}</span>{/if}
           </button>
           {#if album.allowDownload}
-            <IconButton label="Download semua (ZIP)" name="download" size={23} hit={44} onclick={downloadAll} />
+            <IconButton label="Download all (ZIP)" name="download" size={23} hit={44} onclick={downloadAll} />
           {/if}
         {/if}
-        <IconButton label="Lagi" name="more" size={21} hit={44} active={menuOpen} onclick={() => (menuOpen = !menuOpen)} />
+        <IconButton label="More" name="more" size={21} hit={44} active={menuOpen} onclick={() => (menuOpen = !menuOpen)} />
       </div>
       <MoreMenu open={menuOpen} onclose={() => (menuOpen = false)} items={menu} />
     </div>
@@ -361,9 +361,9 @@
 
   <main class="main">
     {#if favMode}
-      <p class="fav-note">Pilihan disimpan dalam browser ni sahaja. Buka link di phone lain, senarai akan kosong.</p>
+      <p class="fav-note">Favourites are saved in this browser only. On another phone the list starts empty.</p>
       {#if favIds.length === 0}
-        <p class="empty">Belum ada favourite. Tekan hati pada gambar untuk simpan.</p>
+        <p class="empty">No favourites yet. Tap the heart on a photo to save it.</p>
       {:else}
         <JustifiedGrid
           assets={favAssets}
@@ -391,7 +391,7 @@
           </a>
         {/if}
         <h1>{album.title}</h1>
-        <span>{formatCount(album.assetCount)} gambar{#if album.takenAt} · {formatShortDate(album.takenAt)}{/if}</span>
+        <span>{formatCount(album.assetCount)} photos{#if album.takenAt} · {formatShortDate(album.takenAt)}{/if}</span>
       </div>
 
       {#if view && view.trail.length > 0}
@@ -401,7 +401,7 @@
             onclick={(event) => {
               event.preventDefault();
               openFolder(null);
-            }}>Semua folder</a
+            }}>All folders</a
           >
           {#each view.trail as step, index (step.id)}
             <span aria-hidden="true">›</span>
@@ -423,7 +423,7 @@
       {#if viewError}
         <p class="empty">{viewError}</p>
       {:else if !view}
-        <p class="empty" aria-busy="true">Memuatkan…</p>
+        <p class="empty" aria-busy="true">Loading…</p>
       {:else}
         {#if view.folders.length > 0}
           <div class="folders">
@@ -440,7 +440,7 @@
                   {#if card.cover}<Photo asset={card.cover} />{/if}
                 </span>
                 <span class="folder-name">{card.name}</span>
-                <span class="folder-count">{formatCount(card.count)} gambar</span>
+                <span class="folder-count">{formatCount(card.count)} photos</span>
               </a>
             {/each}
           </div>
@@ -458,13 +458,13 @@
             />
           {/key}
         {:else if view.folders.length === 0}
-          <p class="empty">Tiada gambar dalam folder ni.</p>
+          <p class="empty">No photos in this folder.</p>
         {/if}
       {/if}
     {/if}
   </main>
 
-  <footer>Gambar oleh <a href="https://johorstudio.com">JohorStudio.com</a></footer>
+  <footer>Photos by <a href="https://johorstudio.com">JohorStudio.com</a></footer>
 
   {#if viewerId}
     <Viewer

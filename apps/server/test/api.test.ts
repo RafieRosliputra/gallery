@@ -309,7 +309,7 @@ describe('public and admin API', () => {
     expect((await readZip(crossAlbum.rawPayload)).size).toBe(0);
   });
 
-  it('returns 409 with a BM slug message for shared-namespace conflicts', async () => {
+  it('returns 409 with a slug message for shared-namespace conflicts', async () => {
     const clientConflict = await app.inject({
       method: 'POST',
       url: '/s/api/admin/clients',
@@ -319,7 +319,7 @@ describe('public and admin API', () => {
     expect(clientConflict.statusCode).toBe(409);
     expect(clientConflict.json()).toMatchObject({
       error: 'slug_conflict',
-      message: expect.stringContaining('Slug sudah digunakan'),
+      message: expect.stringContaining('already used'),
     });
 
     const albumConflict = await app.inject({
@@ -518,6 +518,40 @@ describe('public and admin API', () => {
     expect(zoomView.statusCode).not.toBe(403);
 
     await app.inject({ method: 'DELETE', url: `/s/api/admin/albums/${albumId}`, headers: { cookie: ids.adminCookie } });
+  });
+
+  it('creates one album per ticked folder with a unique slug from the folder name', async () => {
+    const first = await app.inject({
+      method: 'POST',
+      url: `/s/api/admin/clients/${ids.clientKlien}/albums`,
+      headers: { cookie: ids.adminCookie },
+      payload: { folderId: ids.albumA },
+    });
+    expect(first.statusCode).toBe(201);
+    expect(first.json().album).toMatchObject({ title: 'Album A', slug: 'album-a-2', allowDownload: true });
+    const second = await app.inject({
+      method: 'POST',
+      url: `/s/api/admin/clients/${ids.clientKlien}/albums`,
+      headers: { cookie: ids.adminCookie },
+      payload: { folderId: ids.albumA },
+    });
+    expect(second.json().album.slug).toBe('album-a-3');
+
+    const listed = await app.inject({
+      method: 'GET',
+      url: `/s/api/admin/clients/${ids.clientKlien}/albums`,
+      headers: { cookie: ids.adminCookie },
+    });
+    const created = listed.json().albums.find((album: { id: string }) => album.id === first.json().album.id);
+    expect(created).toMatchObject({ count: 2, rules: [{ folderId: ids.albumA, path: 'Klien Demo/Album A', included: true }] });
+
+    for (const response of [first, second]) {
+      await app.inject({
+        method: 'DELETE',
+        url: `/s/api/admin/albums/${response.json().album.id}`,
+        headers: { cookie: ids.adminCookie },
+      });
+    }
   });
 
   it('returns lazy folder children with counts', async () => {

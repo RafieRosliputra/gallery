@@ -5,7 +5,10 @@
  * `$lib/api/client.ts` adapts that contract into these shapes so components do
  * not care about nullable dimensions, single-cover cards or month keys.
  */
-import type { AdminStatusResponse, ClientSummary } from '@gallery/shared';
+import type { AdminStatusResponse, ClientAlbumEntry, ClientSummary } from '@gallery/shared';
+
+/** Admin: one album of a client (each album = one ticked folder + hidden subfolders). */
+export type ClientAlbum = ClientAlbumEntry;
 
 export interface Asset {
   id: string;

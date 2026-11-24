@@ -35,7 +35,7 @@
       await api.login(username, password);
       await goto(next, { replaceState: true });
     } catch (cause) {
-      error = cause instanceof ApiError ? cause.message : 'Tak dapat hubungi pelayan. Cuba lagi.';
+      error = cause instanceof ApiError ? cause.message : 'Could not reach the server. Try again.';
     } finally {
       busy = false;
     }
@@ -43,7 +43,7 @@
 </script>
 
 <svelte:head>
-  <title>Log masuk admin · JohorStudio</title>
+  <title>Admin sign in · JohorStudio</title>
 </svelte:head>
 
 <div class="login">
@@ -54,18 +54,18 @@
         <span style:background={color}></span>
       {/each}
     </div>
-    <p class="tagline">Galeri studio.<br />Semua gambar, satu tempat.</p>
+    <p class="tagline">Studio gallery.<br />Every photo, one place.</p>
   </section>
 
   <section class="form-side">
     <form onsubmit={submit} novalidate>
       <div class="heading">
-        <h1>Log masuk admin</h1>
+        <h1>Admin sign in</h1>
         <p>johorstudio.com/s</p>
       </div>
 
       <label>
-        Nama pengguna
+        Username
         <input
           type="text"
           name="username"
@@ -76,7 +76,7 @@
       </label>
 
       <label>
-        Kata laluan
+        Password
         <input
           type="password"
           name="password"
@@ -91,9 +91,9 @@
       {/if}
 
       <button type="submit" class="submit" disabled={busy || checking}>
-        {busy ? 'Memasuk…' : 'Masuk'}
+        {busy ? 'Signing in…' : 'Sign in'}
       </button>
-      <p class="hint">5 cubaan salah = kunci 15 minit.</p>
+      <p class="hint">5 wrong tries = locked for 15 minutes.</p>
     </form>
   </section>
 </div>

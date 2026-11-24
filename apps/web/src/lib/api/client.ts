@@ -27,6 +27,7 @@ import type {
   AlbumCard,
   AlbumFolderView,
   AlbumResponse,
+  ClientAlbum,
   AlbumSaveRequest,
   FolderMoveEntry,
   FolderRule,
@@ -43,7 +44,7 @@ import type {
 
 const API = `${base}/api`;
 
-const MONTHS = ['Jan', 'Feb', 'Mac', 'Apr', 'Mei', 'Jun', 'Jul', 'Ogo', 'Sep', 'Okt', 'Nov', 'Dis'];
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 export class ApiError extends Error {
   readonly status: number;
@@ -167,7 +168,7 @@ function toBucket(wire: BucketSummary): BucketRef {
     key: wire.key,
     count: wire.count,
     label: wire.label ?? wire.key,
-    sub: `${wire.count} gambar`
+    sub: `${wire.count} photos`
   };
 }
 
@@ -350,7 +351,7 @@ export const api = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body)
     });
-    if (!response.ok) throw new ApiError(response.status, response.statusText || 'ZIP gagal');
+    if (!response.ok) throw new ApiError(response.status, response.statusText || 'ZIP failed');
     return response.blob();
   },
 
@@ -384,7 +385,7 @@ export const api = {
       request<{ clients: ClientSummary[] }>('/admin/clients')
     ]);
     const album = albums.find((candidate) => candidate.id === id);
-    if (!album) throw new ApiError(404, 'Album tak dijumpai.');
+    if (!album) throw new ApiError(404, 'Album not found.');
     return {
       album,
       rules: selected.folders.map((folder) => ({
@@ -408,6 +409,43 @@ export const api = {
       hasChildren: node.hasChildren
     });
     return { parent: wire.parent ? picker(wire.parent) : null, folders: wire.folders.map(picker) };
+  },
+
+  getClientAlbums(clientId: string): Promise<{ client: ClientSummary; albums: ClientAlbum[] }> {
+    return request<{ client: ClientSummary; albums: ClientAlbum[] }>(`/admin/clients/${encodeURIComponent(clientId)}/albums`);
+  },
+
+  async createFolderAlbum(clientId: string, folderId: string): Promise<ClientAlbum> {
+    const response = await request<{ album: ClientAlbum }>(`/admin/clients/${encodeURIComponent(clientId)}/albums`, {
+      method: 'POST',
+      body: JSON.stringify({ folderId })
+    });
+    albumDetailCache.clear();
+    return response.album;
+  },
+
+  async saveAlbumRules(albumId: string, rules: FolderRule[]): Promise<ScopeStats> {
+    const response = await request<ScopeStats>(`/admin/albums/${encodeURIComponent(albumId)}/folders`, {
+      method: 'PUT',
+      body: JSON.stringify({ rules: rules.map(({ folderId, included }) => ({ folderId, included })) })
+    });
+    albumDetailCache.clear();
+    return response;
+  },
+
+  async updateAlbumSettings(
+    albumId: string,
+    body: { title?: string; slug?: string; allowDownload?: boolean }
+  ): Promise<void> {
+    await request(`/admin/albums/${encodeURIComponent(albumId)}`, { method: 'PATCH', body: JSON.stringify(body) });
+    albumDetailCache.clear();
+  },
+
+  updateClient(id: string, body: { name?: string; slug?: string }): Promise<{ client: ClientSummary }> {
+    return request<{ client: ClientSummary }>(`/admin/clients/${encodeURIComponent(id)}`, {
+      method: 'PATCH',
+      body: JSON.stringify(body)
+    });
   },
 
   getAlbumThumbs(id: string): Promise<ThumbProgress> {
@@ -511,7 +549,7 @@ export const api = {
         : root;
     }
     const current = currentResponse.parent;
-    if (!current) throw new ApiError(404, 'Folder tak dijumpai.');
+    if (!current) throw new ApiError(404, 'Folder not found.');
 
     const breadcrumb: { id: string; name: string; path: string }[] = [];
     let cursor: WireFolderNode | null = current;

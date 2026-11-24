@@ -50,7 +50,7 @@ async function readLineFromStdin(hidden: boolean): Promise<string> {
       }
     };
     stdin.setRawMode(true);
-    process.stderr.write(hidden ? 'Kata laluan: ' : 'Input: ');
+    process.stderr.write(hidden ? 'Password: ' : 'Input: ');
     stdin.on('data', onData);
   });
 }

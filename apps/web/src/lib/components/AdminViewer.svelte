@@ -73,7 +73,7 @@
 <svelte:window onkeydown={onkey} onmousemove={wake} />
 
 {#if current}
-  <div class="backdrop" role="dialog" aria-modal="true" aria-label="Lihat gambar">
+  <div class="backdrop" role="dialog" aria-modal="true" aria-label="View photo">
     <PhotoStage
       {items}
       {index}
@@ -81,10 +81,10 @@
       onclose={close}
       ontap={toggleChrome}
       originalUrl={(asset) => api.originalUrl(asset.id)}
-      label={`Gambar ${index + 1} daripada ${items.length}`}
+      label={`Photo ${index + 1} of ${items.length}`}
     />
     <div class="bar" class:hidden={!chrome}>
-      <button type="button" class="action" aria-label="Tutup" onclick={close}>
+      <button type="button" class="action" aria-label="Close" onclick={close}>
         <Icon name="back" size={22} />
       </button>
       <div class="info">
@@ -93,7 +93,7 @@
         {/if}
         <span class="meta count">{index + 1} / {items.length}{current.camera ? ` · ${current.camera}` : ''}</span>
       </div>
-      <a class="action" href={api.originalUrl(current.id)} download aria-label="Download fail asal">
+      <a class="action" href={api.originalUrl(current.id)} download aria-label="Download original">
         <Icon name="download" size={22} />
       </a>
     </div>

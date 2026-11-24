@@ -15,7 +15,7 @@
     try {
       status = await api.getAdminStatus();
     } catch (error) {
-      if (!isUnauthorised(error)) console.error('status gagal', error);
+      if (!isUnauthorised(error)) console.error('status failed', error);
     }
   });
 
@@ -32,9 +32,9 @@
 
   const nav = [
     { key: 'timeline', label: 'Timeline', href: `${base}/admin`, icon: 'grid' },
-    { key: 'albums', label: 'Album', href: `${base}/admin/albums`, icon: 'albums' },
-    { key: 'clients', label: 'Klien', href: `${base}/admin/clients`, icon: 'link' },
-    { key: 'status', label: 'Status sistem', href: `${base}/admin/status`, icon: 'pulse' }
+    { key: 'albums', label: 'Albums', href: `${base}/admin/albums`, icon: 'albums' },
+    { key: 'clients', label: 'Clients', href: `${base}/admin/clients`, icon: 'link' },
+    { key: 'status', label: 'System status', href: `${base}/admin/status`, icon: 'pulse' }
   ] as const;
 </script>
 
@@ -52,8 +52,8 @@
     <div class="cache">
       <div class="cache-row"><span>Hot cache SSD</span><strong>{hotLabel}</strong></div>
       <div class="bar"><div class="fill" style:width={`${hotPercent}%`}></div></div>
-      <span class="muted">Simpan 30 hari, lepas tu buang auto</span>
-      <span class="muted">Imbas terakhir: {status?.lastScanAt ? formatLocalClock(status.lastScanAt) : '—'} · {formatCount(status?.assets)} gambar</span>
+      <span class="muted">Kept 30 days, then removed automatically</span>
+      <span class="muted">Last scan: {status?.lastScanAt ? formatLocalClock(status.lastScanAt) : '—'} · {formatCount(status?.assets)} photos</span>
     </div>
   </nav>
 

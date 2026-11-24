@@ -17,8 +17,8 @@ export interface OriginalDeps {
   sourceRoot?: string;
 }
 
-const SCOPE_DENIED = 'Fail ini tidak dibenarkan untuk pautan ini.';
-const DOWNLOAD_DENIED = 'Muat turun tidak dibenarkan untuk album ini.';
+const SCOPE_DENIED = 'This file is not part of this link.';
+const DOWNLOAD_DENIED = 'Downloads are turned off for this album.';
 
 /** Hot cache path: DATA_DIR/hot/<derivKey> (phase 3 writes it). */
 export function hotPath(dataDir: string, derivKey: string): string {
@@ -37,7 +37,7 @@ export function registerOriginalRoutes(app: FastifyInstance, deps: OriginalDeps)
   app.get('/s/api/o/:assetId', async (request, reply) => {
     const rawId = (request.params as { assetId: string }).assetId;
     const assetId = parseBigIntId(rawId);
-    if (!assetId) return sendError(reply, 400, 'bad_id', 'ID fail tidak sah.');
+    if (!assetId) return sendError(reply, 400, 'bad_id', 'Invalid file id.');
 
     const asset = await findAssetFile(deps.pool, assetId);
     if (!asset) return sendError(reply, 404, 'not_found', NOT_FOUND_MESSAGE);
@@ -46,7 +46,7 @@ export function registerOriginalRoutes(app: FastifyInstance, deps: OriginalDeps)
     if (!admin) {
       const albumSlug = (request.query as Record<string, unknown> | undefined)?.['album'];
       if (typeof albumSlug !== 'string' || albumSlug === '') {
-        return sendError(reply, 401, 'unauthorized', 'Sesi tidak sah atau telah tamat.');
+        return sendError(reply, 401, 'unauthorized', 'Session is invalid or has expired.');
       }
       const album = await findAlbumBySlug(deps.pool, albumSlug);
       if (!album) return sendError(reply, 404, 'not_found', NOT_FOUND_MESSAGE);

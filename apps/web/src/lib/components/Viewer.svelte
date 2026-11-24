@@ -58,8 +58,8 @@
   );
 
   const menu: MenuItem[] = [
-    { label: 'Salin link gambar', icon: 'link', onclick: () => void share() },
-    { label: 'Pergi ke JohorStudio.com', icon: 'globe', href: 'https://johorstudio.com' }
+    { label: 'Copy photo link', icon: 'link', onclick: () => void share() },
+    { label: 'Go to JohorStudio.com', icon: 'globe', href: 'https://johorstudio.com' }
   ];
 
   onMount(() => {
@@ -98,7 +98,7 @@
       }
     }
     const ok = await copyText(shareUrl);
-    toast = ok ? 'Link disalin' : 'Gagal salin link';
+    toast = ok ? 'Link copied' : 'Could not copy link';
     window.setTimeout(() => (toast = ''), 2500);
   }
 </script>
@@ -107,20 +107,20 @@
   class="viewer"
   role="dialog"
   aria-modal="true"
-  aria-label="Lihat gambar"
+  aria-label="View photo"
   tabindex="-1"
   bind:this={dialog}
 >
   <header class="bar" class:hidden={!chrome}>
-    <button type="button" class="back" aria-label="Kembali ke galeri" onclick={onclose}>
+    <button type="button" class="back" aria-label="Back to gallery" onclick={onclose}>
       <Icon name="back" size={22} strokeWidth={2} />
     </button>
     <div class="actions">
-      <IconButton label="Kongsi gambar" name="share" size={21} hit={44} onclick={share} />
+      <IconButton label="Share photo" name="share" size={21} hit={44} onclick={share} />
       <button
         type="button"
         class="icon-button"
-        aria-label={isFav ? 'Buang dari favourite' : 'Tambah ke favourite'}
+        aria-label={isFav ? 'Remove from favourites' : 'Add to favourites'}
         aria-pressed={isFav}
         class:fav={isFav}
         style:width="44px"
@@ -130,11 +130,11 @@
         <Icon name="heart" size={22} fill={isFav ? 'currentColor' : 'none'} />
       </button>
       {#if allowDownload && active}
-        <a class="icon-button" href={active.original ?? api.originalUrl(active.id, album.slug)} download aria-label="Download gambar ni" title="Download gambar ni">
+        <a class="icon-button" href={active.original ?? api.originalUrl(active.id, album.slug)} download aria-label="Download this photo" title="Download this photo">
           <Icon name="download" size={23} />
         </a>
       {/if}
-      <IconButton label="Lagi" name="more" size={21} hit={44} active={menuOpen} onclick={() => (menuOpen = !menuOpen)} />
+      <IconButton label="More" name="more" size={21} hit={44} active={menuOpen} onclick={() => (menuOpen = !menuOpen)} />
     </div>
     <MoreMenu open={menuOpen} onclose={() => (menuOpen = false)} items={menu} />
   </header>
@@ -147,21 +147,21 @@
       {onclose}
       ontap={() => (chrome = !chrome)}
       originalUrl={(asset) => `${api.originalUrl(asset.id, album.slug)}&view=1`}
-      label={`Gambar ${index + 1} daripada ${formatCount(total)}`}
+      label={`Photo ${index + 1} of ${formatCount(total)}`}
     />
   {:else}
-    <p class="missing">Gambar tak dijumpai.</p>
+    <p class="missing">Photo not found.</p>
   {/if}
 
   <div class="bottom" class:hidden={!chrome}>
     <span class="counter">{active ? formatCount(index + 1) : '0'} / {formatCount(total)}</span>
-    <div class="strip" role="group" aria-label="Gambar berdekatan">
+    <div class="strip" role="group" aria-label="Nearby photos">
       {#each strip as item (item.id)}
         <button
           type="button"
           class="thumb"
           class:current={item.id === active?.id}
-          aria-label={`Buka gambar ${item.id}`}
+          aria-label={`Open photo ${item.id}`}
           aria-current={item.id === active?.id ? 'true' : undefined}
           onclick={() => onchange(item.id)}
         >

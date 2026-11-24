@@ -78,8 +78,8 @@
       started = true;
       onitems(cacheKey, merged, page.nextCursor);
     } catch (cause) {
-      console.error('bucket gagal', cause);
-      error = 'Gambar tak dapat dimuatkan.';
+      console.error('bucket failed', cause);
+      error = 'Could not load photos.';
     } finally {
       loading = false;
     }
@@ -98,13 +98,13 @@
     ariaLabel={bucket.label ?? bucket.key}
   />
   {#if error}
-    <button type="button" class="retry" onclick={loadMore}>{error} Cuba lagi</button>
+    <button type="button" class="retry" onclick={loadMore}>{error} Try again</button>
   {/if}
   <div bind:this={sentinel} class="sentinel" aria-hidden="true"></div>
   {#if loading}
-    <p class="status" aria-busy="true">Memuatkan {formatCount(bucket.count)} gambar…</p>
+    <p class="status" aria-busy="true">Loading {formatCount(bucket.count)} photos…</p>
   {:else if nextCursor !== null}
-    <button type="button" class="more" onclick={loadMore}>Muat lagi</button>
+    <button type="button" class="more" onclick={loadMore}>Load more</button>
   {/if}
 </section>
 

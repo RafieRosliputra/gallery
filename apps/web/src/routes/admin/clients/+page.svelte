@@ -20,8 +20,8 @@
     try {
       clients = await api.getAdminClients();
     } catch (cause) {
-      console.error('klien gagal', cause);
-      error = 'Senarai klien tak dapat dimuatkan.';
+      console.error('clients failed', cause);
+      error = 'Could not load clients.';
     } finally {
       loaded = true;
     }
@@ -33,7 +33,7 @@
 
   async function copy(label: string, path: string) {
     const ok = await copyText(absolute(path));
-    copied = ok ? label : `Gagal salin ${label}`;
+    copied = ok ? label : `Could not copy ${label}`;
     window.setTimeout(() => (copied = ''), 2500);
   }
 
@@ -53,24 +53,24 @@
   async function removeClient(client: AdminClient) {
     const albums = client.albums.length;
     const ok = window.confirm(
-      `Padam klien "${client.name}"?\n\n` +
-        (albums > 0 ? `${albums} album dia akan dipadam sekali dan semua link /s/... dia akan mati.\n` : '') +
-        'Gambar asal dalam folder TIDAK dipadam.'
+      `Delete client "${client.name}"?\n\n` +
+        (albums > 0 ? `Their ${albums} album(s) will be deleted too and all their /s/... links will stop working.\n` : '') +
+        'Photos in the folders are NOT deleted.'
     );
     if (!ok) return;
     try {
       await api.deleteClient(client.id);
       clients = clients.filter((candidate) => candidate.id !== client.id);
-      copied = `Klien ${client.name} dipadam.`;
+      copied = `Client ${client.name} deleted.`;
     } catch (cause) {
-      copied = cause instanceof Error ? `Padam gagal: ${cause.message}` : 'Padam gagal.';
+      copied = cause instanceof Error ? `Delete failed: ${cause.message}` : 'Delete failed.';
     }
     window.setTimeout(() => (copied = ''), 3000);
   }
 
   async function removeAlbum(client: AdminClient, album: AdminClient['albums'][number]) {
     const ok = window.confirm(
-      `Padam album "${album.title}"?\n\nLink /s/${album.slug} akan mati. Gambar asal dalam folder TIDAK dipadam.`
+      `Delete album "${album.title}"?\n\nThe link /s/${album.slug} will stop working. Photos in the folder are NOT deleted.`
     );
     if (!ok) return;
     try {
@@ -85,9 +85,9 @@
             }
           : candidate
       );
-      copied = `Album ${album.title} dipadam.`;
+      copied = `Album ${album.title} deleted.`;
     } catch (cause) {
-      copied = cause instanceof Error ? `Padam gagal: ${cause.message}` : 'Padam gagal.';
+      copied = cause instanceof Error ? `Delete failed: ${cause.message}` : 'Delete failed.';
     }
     window.setTimeout(() => (copied = ''), 3000);
   }
@@ -97,7 +97,7 @@
     if (creating) return;
     createError = '';
     if (!newName.trim() || newSlug.length < 3) {
-      createError = 'Nama dan slug (3–60 aksara) diperlukan.';
+      createError = 'Name and link (3–60 characters) are required.';
       return;
     }
     creating = true;
@@ -107,10 +107,10 @@
       adding = false;
       newName = '';
       newSlug = '';
-      copied = 'Klien baru dicipta.';
+      copied = 'Client created.';
       window.setTimeout(() => (copied = ''), 2500);
     } catch (cause) {
-      createError = cause instanceof Error ? cause.message : 'Klien gagal dicipta.';
+      createError = cause instanceof Error ? cause.message : 'Could not create the client.';
     } finally {
       creating = false;
     }
@@ -118,29 +118,29 @@
 </script>
 
 <svelte:head>
-  <title>Klien · JohorStudio admin</title>
+  <title>Clients · JohorStudio admin</title>
 </svelte:head>
 
 <header class="head">
   <div class="titles">
-    <h1>Klien</h1>
-    <span>1 klien = 1 link portal berisi semua event yang dia hire. Tekan + Album untuk tambah event baru. Setiap album ada link sendiri untuk dikongsi.</span>
+    <h1>Clients</h1>
+    <span>1 client = 1 portal link with every event they booked. Open “Manage albums” and tick folders — each ticked folder is an album with its own share link.</span>
   </div>
-  <button type="button" class="new" aria-expanded={adding} onclick={() => (adding = !adding)}>+ Klien baru</button>
+  <button type="button" class="new" aria-expanded={adding} onclick={() => (adding = !adding)}>+ New client</button>
 </header>
 
 {#if error}<p class="error" role="alert">{error}</p>{/if}
 
 {#if adding}
   <form class="create" onsubmit={createClient}>
-    <label>Nama klien<input type="text" bind:value={newName} oninput={onName} placeholder="Tadika Contoh" /></label>
-    <label>Slug portal
-      <span class="slug"><span>johorstudio.com/s/</span><input type="text" bind:value={newSlug} placeholder="tadika-contoh" /></span>
+    <label>Client name<input type="text" bind:value={newName} oninput={onName} placeholder="Sekolah Rendah Islam Ibnu Nafis" /></label>
+    <label>Portal link
+      <span class="slug"><span>johorstudio.com/s/</span><input type="text" bind:value={newSlug} placeholder="sriin" /></span>
     </label>
     {#if createError}<span class="create-error" role="alert">{createError}</span>{/if}
     <div class="create-actions">
-      <button type="button" class="ghost" onclick={() => (adding = false)}>Batal</button>
-      <button type="submit" class="dark" disabled={creating}>{creating ? 'Menyimpan…' : 'Simpan klien'}</button>
+      <button type="button" class="ghost" onclick={() => (adding = false)}>Cancel</button>
+      <button type="submit" class="dark" disabled={creating}>{creating ? 'Saving…' : 'Save client'}</button>
     </div>
   </form>
 {/if}
@@ -150,16 +150,16 @@
   <section class="client">
     <div class="client-head">
       <div class="who">
-        <h2>{client.name}</h2>
+        <h2><a class="client-link" href={`${base}/admin/clients/${client.id}`}>{client.name}</a></h2>
         <span class="portal">
-          Portal: <strong>johorstudio.com/s/<em>{client.slug}</em></strong> · {client.albumCount} album · {formatCount(client.assetCount)} gambar
+          Portal: <strong>johorstudio.com/s/<em>{client.slug}</em></strong> · {client.albumCount} {client.albumCount === 1 ? 'album' : 'albums'} · {formatCount(client.assetCount)} photos
         </span>
       </div>
       <div class="client-actions">
-        <button type="button" class="ghost" onclick={() => copy(`Link portal ${client.name}`, `/s/${client.slug}`)}>Salin link portal</button>
-        <a class="ghost" href={`${base}/${client.slug}`}>Buka</a>
-        <a class="dark" href={`${base}/admin/albums/new?client=${client.id}`}>+ Album</a>
-        <button type="button" class="ghost danger" onclick={() => removeClient(client)}>Padam klien</button>
+        <button type="button" class="ghost" onclick={() => copy(`Portal link for ${client.name}`, `/s/${client.slug}`)}>Copy portal link</button>
+        <a class="ghost" href={`${base}/${client.slug}`}>Open</a>
+        <a class="dark" href={`${base}/admin/clients/${client.id}`}>Manage albums</a>
+        <button type="button" class="ghost danger" onclick={() => removeClient(client)}>Delete client</button>
       </div>
     </div>
 
@@ -167,12 +167,12 @@
       <table>
         <thead>
           <tr>
-            <th>Event (album)</th>
-            <th>Link album (untuk customer)</th>
-            <th>Gambar</th>
-            <th>Kamera</th>
+            <th>Album (event)</th>
+            <th>Album link (to share)</th>
+            <th>Photos</th>
+            <th>Cameras</th>
             <th>Download</th>
-            <th aria-label="Tindakan"></th>
+            <th aria-label="Actions"></th>
           </tr>
         </thead>
         <tbody>
@@ -181,13 +181,13 @@
               <td class="album-title">{album.title}{#if album.takenAt}<span class="event-date">{formatShortDate(album.takenAt)}</span>{/if}</td>
               <td class="nowrap">/s/<em>{album.slug}</em></td>
               <td>{formatCount(album.assetCount)}</td>
-              <td class="muted">{album.cameras.length > 1 ? album.cameras.join(', ') : album.cameras.length === 1 ? '1 kamera' : '—'}</td>
-              <td>{album.allowDownload ? 'Buka' : 'Tutup'}</td>
+              <td class="muted">{album.cameras.length > 1 ? album.cameras.join(', ') : album.cameras.length === 1 ? '1 camera' : '—'}</td>
+              <td>{album.allowDownload ? 'On' : 'Off'}</td>
               <td>
                 <div class="row-actions">
-                  <button type="button" class="ghost small" onclick={() => copy(`Link ${album.title}`, `/s/${album.slug}`)}>Salin</button>
+                  <button type="button" class="ghost small" onclick={() => copy(`Link ${album.title}`, `/s/${album.slug}`)}>Copy</button>
                   <a class="ghost small" href={`${base}/admin/albums/${album.id}`}>Edit</a>
-                  <button type="button" class="ghost small danger" onclick={() => removeAlbum(client, album)}>Padam</button>
+                  <button type="button" class="ghost small danger" onclick={() => removeAlbum(client, album)}>Delete</button>
                 </div>
               </td>
             </tr>
@@ -197,8 +197,8 @@
     </div>
   </section>
 {:else}
-  {#if !loaded}<p class="loading" aria-busy="true">Memuatkan klien…</p>
-  {:else if !error}<p class="loading">Belum ada klien. Tekan "+ Klien baru" untuk mula.</p>{/if}
+  {#if !loaded}<p class="loading" aria-busy="true">Loading clients…</p>
+  {:else if !error}<p class="loading">No clients yet. Press “+ New client” to start.</p>{/if}
 {/each}
 
 <style>

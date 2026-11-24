@@ -172,7 +172,7 @@ export function registerPublicRoutes(app: FastifyInstance, deps: PublicApiDeps):
     if (!album) return sendError(reply, 404, 'not_found', NOT_FOUND_MESSAGE);
     const raw = queryText(request.query, 'folder');
     const folderId = raw ? parseBigIntId(raw) : null;
-    if (raw && !folderId) return sendError(reply, 400, 'bad_id', 'ID folder tidak sah.');
+    if (raw && !folderId) return sendError(reply, 400, 'bad_id', 'Invalid folder id.');
     const view = await albumFolderView({
       pool: deps.pool,
       albumId: album.id,
@@ -189,7 +189,7 @@ export function registerPublicRoutes(app: FastifyInstance, deps: PublicApiDeps):
   // owns the asset's folder. A public caller must name that album.
   app.get('/s/api/asset/:id', async (request, reply) => {
     const assetId = parseBigIntId((request.params as { id: string }).id);
-    if (!assetId) return sendError(reply, 400, 'bad_id', 'ID fail tidak sah.');
+    if (!assetId) return sendError(reply, 400, 'bad_id', 'Invalid file id.');
 
     const asset = await findAssetFile(deps.pool, assetId);
     if (!asset) return sendError(reply, 404, 'not_found', NOT_FOUND_MESSAGE);
@@ -202,10 +202,10 @@ export function registerPublicRoutes(app: FastifyInstance, deps: PublicApiDeps):
       if (!album) return sendError(reply, 404, 'not_found', NOT_FOUND_MESSAGE);
     }
     if (!admin) {
-      if (!album) return sendError(reply, 401, 'unauthorized', 'Sesi tidak sah atau telah tamat.');
+      if (!album) return sendError(reply, 401, 'unauthorized', 'Session is invalid or has expired.');
       const folderIds = await albumFolderIds(deps.pool, album.id);
       if (!folderIds.includes(asset.folder_id)) {
-        return sendError(reply, 403, 'forbidden', 'Fail ini tidak dibenarkan untuk pautan ini.');
+        return sendError(reply, 403, 'forbidden', 'This file is not part of this link.');
       }
     }
 
@@ -227,10 +227,10 @@ export function registerPublicRoutes(app: FastifyInstance, deps: PublicApiDeps):
     // Folder buckets are public only inside an album (the album scope still
     // applies, so a folder outside it returns nothing).
     if (folderKey && !admin && !albumSlug) {
-      return sendError(reply, 401, 'unauthorized', 'Sesi tidak sah atau telah tamat.');
+      return sendError(reply, 401, 'unauthorized', 'Session is invalid or has expired.');
     }
     if (!MONTH_KEY.test(key) && !folderKey) {
-      return sendError(reply, 400, 'bad_key', 'Kunci bucket tidak sah.');
+      return sendError(reply, 400, 'bad_key', 'Invalid bucket key.');
     }
 
     let album: AlbumRecord | null = null;
@@ -238,12 +238,12 @@ export function registerPublicRoutes(app: FastifyInstance, deps: PublicApiDeps):
       album = await findAlbumBySlug(deps.pool, albumSlug);
       if (!album) return sendError(reply, 404, 'not_found', NOT_FOUND_MESSAGE);
     } else if (!admin) {
-      return sendError(reply, 401, 'unauthorized', 'Sesi tidak sah atau telah tamat.');
+      return sendError(reply, 401, 'unauthorized', 'Session is invalid or has expired.');
     }
 
     const cursorRaw = queryText(request.query, 'cursor');
     const cursor = cursorRaw ? decodeAssetCursor(cursorRaw) : null;
-    if (cursorRaw && !cursor) return sendError(reply, 400, 'bad_cursor', 'Kursor tidak sah.');
+    if (cursorRaw && !cursor) return sendError(reply, 400, 'bad_cursor', 'Invalid cursor.');
 
     const page = await fetchAssetPage({
       pool: deps.pool,

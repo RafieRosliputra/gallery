@@ -18,7 +18,7 @@
     onclose,
     ontap = undefined,
     originalUrl = undefined,
-    label = 'Gambar'
+    label = 'Photo'
   }: {
     items: Asset[];
     index: number;
@@ -446,12 +446,12 @@
   </div>
 
   {#if hasPrev}
-    <button type="button" class="nav left" aria-label="Gambar sebelum" onpointerdown={(e) => e.stopPropagation()} onclick={() => go(-1)}>
+    <button type="button" class="nav left" aria-label="Previous photo" onpointerdown={(e) => e.stopPropagation()} onclick={() => go(-1)}>
       <Icon name="back" size={24} strokeWidth={2} />
     </button>
   {/if}
   {#if hasNext}
-    <button type="button" class="nav right" aria-label="Gambar seterusnya" onpointerdown={(e) => e.stopPropagation()} onclick={() => go(1)}>
+    <button type="button" class="nav right" aria-label="Next photo" onpointerdown={(e) => e.stopPropagation()} onclick={() => go(1)}>
       <Icon name="back" size={24} strokeWidth={2} />
     </button>
   {/if}

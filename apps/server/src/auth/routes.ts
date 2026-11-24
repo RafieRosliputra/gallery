@@ -25,8 +25,8 @@ const COOKIE_OPTIONS = {
   sameSite: 'lax',
 } as const;
 
-const INVALID_CREDENTIALS = 'Nama pengguna atau kata laluan tidak sah.';
-const RATE_LIMITED = 'Terlalu banyak percubaan log masuk. Cuba lagi selepas 15 minit.';
+const INVALID_CREDENTIALS = 'Wrong username or password.';
+const RATE_LIMITED = 'Too many sign-in attempts. Try again in 15 minutes.';
 
 export function clientIp(request: FastifyRequest, trustProxy: boolean): string {
   if (!trustProxy) return request.socket.remoteAddress ?? 'unknown';
@@ -52,7 +52,7 @@ export function registerAuthRoutes(app: FastifyInstance, deps: AuthDeps): void {
     reply.header('Cache-Control', 'no-store');
     const input = credentials(request.body);
     if (!input) {
-      return reply.code(400).send({ error: 'bad_request', message: 'Nama pengguna dan kata laluan diperlukan.' });
+      return reply.code(400).send({ error: 'bad_request', message: 'Username and password are required.' });
     }
 
     const ip = clientIp(request, deps.trustProxy);
@@ -127,13 +127,13 @@ export async function requireAdmin(
   reply.header('Cache-Control', 'no-store');
   const token = request.cookies[SESSION_COOKIE];
   if (typeof token !== 'string' || token === '') {
-    reply.code(401).send({ error: 'unauthorized', message: 'Sesi tidak sah atau telah tamat.' });
+    reply.code(401).send({ error: 'unauthorized', message: 'Session is invalid or has expired.' });
     return null;
   }
   const session = await findSession(deps.pool, token);
   if (!session) {
     reply.clearCookie(SESSION_COOKIE, COOKIE_OPTIONS);
-    reply.code(401).send({ error: 'unauthorized', message: 'Sesi tidak sah atau telah tamat.' });
+    reply.code(401).send({ error: 'unauthorized', message: 'Session is invalid or has expired.' });
     return null;
   }
   request.adminSession = session;
