@@ -33,12 +33,12 @@
         mode = 'album';
       }
     } catch (cause) {
-      console.error('resolve gagal', cause);
+      console.error('resolve failed', cause);
       if (isNotFound(cause)) {
         mode = 'missing';
       } else {
         mode = 'error';
-        message = 'Tak dapat muatkan galeri. Semak sambungan dan cuba lagi.';
+        message = 'Could not load the gallery. Check your connection and try again.';
       }
     }
   }
@@ -58,9 +58,9 @@
       <Logo width={104} />
       <div class="content">
         <div class="blocks" aria-hidden="true"><span></span><span></span><span></span></div>
-        <h1>Link ni tak dijumpai</h1>
-        <p>Semak ejaan link, atau minta link baru dari JohorStudio.</p>
-        <a class="cta" href="https://johorstudio.com">Pergi ke johorstudio.com</a>
+        <h1>This link was not found</h1>
+        <p>Check the link, or ask JohorStudio for a new one.</p>
+        <a class="cta" href="https://johorstudio.com">Go to johorstudio.com</a>
       </div>
     </div>
   </div>
@@ -68,12 +68,12 @@
   <div class="public-theme state">
     <Logo width={104} />
     <p>{message}</p>
-    <button type="button" class="retry" onclick={() => load(slug)}>Cuba lagi</button>
+    <button type="button" class="retry" onclick={() => load(slug)}>Try again</button>
   </div>
 {:else}
   <div class="public-theme state" aria-busy="true">
     <Logo width={104} />
-    <p>Memuatkan galeri…</p>
+    <p>Loading gallery…</p>
   </div>
 {/if}
 

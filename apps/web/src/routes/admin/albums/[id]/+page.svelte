@@ -2,17 +2,19 @@
   import { base } from '$app/paths';
   import { page } from '$app/state';
   import { goto } from '$app/navigation';
-  import type { AdminAlbumDetail, FolderRule, ThumbProgress } from '$lib/api/models';
+  import type { AdminAlbumDetail, ClientAlbum, ThumbProgress } from '$lib/api/models';
   import type { ClientSummary } from '@gallery/shared';
   import { SLUG_REGEX } from '@gallery/shared';
   import { api, ApiError, isNotFound } from '$lib/api/client';
   import { formatCount } from '$lib/format';
   import Photo from '$lib/components/Photo.svelte';
-  import FolderPicker from '$lib/components/FolderPicker.svelte';
+  import AlbumTree from '$lib/components/AlbumTree.svelte';
 
+  // One album = one folder. Here: its name, link, download switch, which
+  // subfolders are hidden from the public, thumbnails, delete.
   let detail = $state<AdminAlbumDetail | null>(null);
   let clients = $state<ClientSummary[]>([]);
-  let rules = $state<FolderRule[]>([]);
+  let tree = $state<ClientAlbum[]>([]);
   let thumbs = $state<ThumbProgress | null>(null);
   let thumbBusy = $state(false);
   let thumbNote = $state('');
@@ -22,16 +24,62 @@
   let title = $state('');
   let slug = $state('');
   let allowDownload = $state(true);
-  let slugTouched = $state(false);
   let slugState = $state<'idle' | 'checking' | 'free' | 'taken'>('idle');
   let saving = $state(false);
   let error = $state('');
   let loading = $state(true);
 
   const id = $derived(page.params.id ?? '');
-  const isNew = $derived(id === 'new');
+  const rules = $derived(tree[0]?.rules ?? []);
+  const roots = $derived(
+    rules
+      .filter((rule) => rule.included)
+      .filter((rule) => !rules.some((other) => other.included && other !== rule && rule.path.startsWith(`${other.path}/`)))
+  );
+  const rootFolderId = $derived(roots[0]?.folderId);
+  const clientOf = $derived(clients.find((client) => client.id === clientId));
 
-  // Thumbnail progress for a saved album; polls while anything is pending.
+  $effect(() => {
+    const albumId = id;
+    if (albumId === 'new') {
+      const client = page.url.searchParams.get('client');
+      void goto(client ? `${base}/admin/clients/${client}` : `${base}/admin/clients`, { replaceState: true });
+      return;
+    }
+    if (albumId) void load(albumId);
+  });
+
+  async function load(albumId: string) {
+    loading = true;
+    error = '';
+    try {
+      const response = await api.getAdminAlbum(albumId);
+      detail = response;
+      clients = response.clients;
+      clientId = response.album.clientId;
+      title = response.album.title;
+      slug = response.album.slug;
+      allowDownload = response.album.allowDownload;
+      tree = [
+        {
+          id: response.album.id,
+          title: response.album.title,
+          slug: response.album.slug,
+          allowDownload: response.album.allowDownload,
+          count: response.album.assetCount,
+          rules: response.rules
+        }
+      ];
+      slugState = 'free';
+    } catch (cause) {
+      console.error('album load failed', cause);
+      error = isNotFound(cause) ? 'Album not found.' : 'Could not load this album.';
+    } finally {
+      loading = false;
+    }
+  }
+
+  // Thumbnail progress; polls while anything is pending.
   $effect(() => {
     const albumId = id;
     if (!albumId || albumId === 'new') return;
@@ -52,13 +100,28 @@
     };
   });
 
+  // Live total for the current (unsaved) visibility.
+  let statsTimer: ReturnType<typeof setTimeout> | undefined;
+  $effect(() => {
+    const snapshot = rules.map(({ folderId, path, included }) => ({ folderId, path, included }));
+    clearTimeout(statsTimer);
+    if (snapshot.length === 0) return;
+    statsTimer = setTimeout(() => {
+      api
+        .previewScope(snapshot)
+        .then((result) => (stats = result))
+        .catch(() => (stats = null));
+    }, 250);
+  });
+
   async function forceThumbs() {
-    if (thumbBusy || isNew) return;
+    if (thumbBusy) return;
     thumbBusy = true;
     thumbNote = '';
     try {
       const result = await api.forceAlbumThumbs(id);
-      thumbNote = result.queued > 0 ? `${formatCount(result.queued)} gambar didahulukan. Siap sekejap lagi.` : 'Semua thumbnail dah siap.';
+      thumbNote =
+        result.queued > 0 ? `${formatCount(result.queued)} photos moved to the front of the queue.` : 'All thumbnails are ready.';
       thumbs = await api.getAlbumThumbs(id);
       if (thumbs.pending > 0) {
         const again = async () => {
@@ -68,142 +131,39 @@
         setTimeout(again, 5000);
       }
     } catch (cause) {
-      thumbNote = cause instanceof ApiError ? cause.message : 'Gagal hantar. Cuba lagi.';
+      thumbNote = cause instanceof ApiError ? cause.message : 'Could not queue thumbnails. Try again.';
     } finally {
       thumbBusy = false;
     }
   }
 
   async function removeAlbum() {
-    if (isNew || deleting || !detail) return;
+    if (deleting || !detail) return;
     const ok = window.confirm(
-      `Padam album "${detail.album.title}"?\n\nLink /s/${detail.album.slug} akan mati. Gambar asal dalam folder TIDAK dipadam.`
+      `Delete album "${detail.album.title}"?\n\nThe link /s/${detail.album.slug} will stop working. Photos in the folder are NOT deleted.`
     );
     if (!ok) return;
     deleting = true;
     try {
       await api.deleteAlbum(id);
-      await goto(`${base}/admin/clients`);
+      await goto(`${base}/admin/clients/${clientId}`);
     } catch (cause) {
-      error = cause instanceof ApiError ? cause.message : 'Padam gagal. Cuba lagi.';
+      error = cause instanceof ApiError ? cause.message : 'Delete failed. Try again.';
     } finally {
       deleting = false;
     }
   }
 
-  const sortedRules = $derived([...rules].sort((a, b) => a.path.localeCompare(b.path)));
-
-  // Live total for the current (unsaved) rules.
-  let statsTimer: ReturnType<typeof setTimeout> | undefined;
-  $effect(() => {
-    const snapshot = rules.map(({ folderId, path, included }) => ({ folderId, path, included }));
-    clearTimeout(statsTimer);
-    if (snapshot.length === 0) {
-      stats = { assetCount: 0, folderCount: 0 };
-      return;
-    }
-    statsTimer = setTimeout(() => {
-      api
-        .previewScope(snapshot)
-        .then((result) => (stats = result))
-        .catch(() => (stats = null));
-    }, 250);
-  });
-
-  $effect(() => {
-    const albumId = id;
-    if (albumId) void load(albumId);
-  });
-
-  async function load(albumId: string) {
-    loading = true;
-    error = '';
-    try {
-      if (albumId === 'new') {
-        clients = await api.getAdminClients();
-        clientId = page.url.searchParams.get('client') ?? clients[0]?.id ?? '';
-        const folderId = page.url.searchParams.get('folder');
-        const folderPath = page.url.searchParams.get('path');
-        rules = folderId && folderPath ? [{ folderId, path: folderPath, included: true }] : [];
-        detail = {
-          album: {
-            id: 'new',
-            title: '',
-            slug: '',
-            clientId: '',
-            clientName: '',
-            clientSlug: '',
-            allowDownload: true,
-            assetCount: 0,
-            folderCount: 0,
-            coverAssetIds: [],
-            covers: [],
-            cameras: [],
-            takenAt: null,
-            createdAt: ''
-          },
-          rules,
-          previews: [],
-          totalAssets: 0,
-          clients
-        };
-      } else {
-        const response = await api.getAdminAlbum(albumId);
-        detail = response;
-        clients = response.clients;
-        clientId = response.album.clientId;
-        title = response.album.title;
-        slug = response.album.slug;
-        allowDownload = response.album.allowDownload;
-        rules = response.rules;
-        slugState = 'free';
-      }
-    } catch (cause) {
-      console.error('album edit gagal', cause);
-      error = isNotFound(cause) ? 'Album ni tak dijumpai.' : 'Album tak dapat dimuatkan.';
-    } finally {
-      loading = false;
-    }
-  }
-
-  function slugify(value: string): string {
-    return value
-      .toLowerCase()
-      .normalize('NFKD')
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-+|-+$/g, '')
-      .slice(0, 60);
-  }
-
-  function onClientChange() {
-    if (clientId === '__new') {
-      error = 'Tambah klien baru di halaman Klien, lepas tu kembali sini.';
-      clientId = clients[0]?.id ?? '';
-    }
-  }
-
-  function onTitleInput() {
-    if (!slugTouched && isNew) {
-      slug = slugify(title);
-      void checkSlug();
-    }
-  }
-
   let slugTimer: ReturnType<typeof setTimeout> | undefined;
 
-  function onSlugInput() {
-    slugTouched = true;
-    void checkSlug();
-  }
-
-  async function checkSlug() {
+  function checkSlug() {
     clearTimeout(slugTimer);
     const candidate = slug.trim();
     if (!SLUG_REGEX.test(candidate)) {
       slugState = 'idle';
       return;
     }
-    if (!isNew && candidate === detail?.album.slug) {
+    if (candidate === detail?.album.slug) {
       slugState = 'free';
       return;
     }
@@ -221,25 +181,16 @@
   async function save() {
     if (saving) return;
     error = '';
-    if (!clientId) return void (error = 'Pilih klien dulu.');
-    if (!title.trim()) return void (error = 'Nama album tak boleh kosong.');
-    if (!SLUG_REGEX.test(slug.trim())) {
-      return void (error = 'Nama link mesti 3–60 aksara: huruf kecil, nombor dan sengkang.');
-    }
-    if (slugState === 'taken') return void (error = 'Nama link ni dah dipakai.');
-    if (!rules.some((rule) => rule.included)) return void (error = 'Tick sekurang-kurangnya satu folder.');
+    if (!clientId) return void (error = 'Choose a client first.');
+    if (!title.trim()) return void (error = 'Album name cannot be empty.');
+    if (!SLUG_REGEX.test(slug.trim())) return void (error = 'Link must be 3–60 characters: a-z, 0-9 and dashes.');
+    if (slugState === 'taken') return void (error = 'That link is already used.');
     saving = true;
     try {
-      await api.saveAlbum(isNew ? null : id, {
-        clientId,
-        title: title.trim(),
-        slug: slug.trim(),
-        allowDownload,
-        rules
-      });
-      await goto(`${base}/admin/clients`);
+      await api.saveAlbum(id, { clientId, title: title.trim(), slug: slug.trim(), allowDownload, rules });
+      await goto(`${base}/admin/clients/${clientId}`);
     } catch (cause) {
-      error = cause instanceof ApiError ? cause.message : 'Simpan gagal. Cuba lagi.';
+      error = cause instanceof ApiError ? cause.message : 'Save failed. Try again.';
     } finally {
       saving = false;
     }
@@ -247,23 +198,21 @@
 </script>
 
 <svelte:head>
-  <title>{isNew ? 'Album baru' : 'Edit album'} · JohorStudio admin</title>
+  <title>Edit album · JohorStudio admin</title>
 </svelte:head>
 
 <header class="head">
   <div class="titles">
-    <a href={`${base}/admin/albums`}>← Album</a>
-    <h1>{isNew ? 'Album baru' : 'Edit album'}</h1>
+    <a href={clientOf ? `${base}/admin/clients/${clientOf.id}` : `${base}/admin/clients`}>← {clientOf?.name ?? 'Clients'}</a>
+    <h1>{detail?.album.title ?? 'Album'}</h1>
   </div>
   <div class="actions">
-    {#if !isNew}
-      <button class="danger" type="button" onclick={removeAlbum} disabled={deleting || loading}>
-        {deleting ? 'Memadam…' : 'Padam album'}
-      </button>
-    {/if}
-    <a class="cancel" href={`${base}/admin/albums`}>Batal</a>
+    <button class="danger" type="button" onclick={removeAlbum} disabled={deleting || loading}>
+      {deleting ? 'Deleting…' : 'Delete album'}
+    </button>
+    <a class="cancel" href={clientOf ? `${base}/admin/clients/${clientOf.id}` : `${base}/admin/clients`}>Cancel</a>
     <button class="save" type="button" onclick={save} disabled={saving || loading}>
-      {saving ? 'Menyimpan…' : 'Simpan'}
+      {saving ? 'Saving…' : 'Save'}
     </button>
   </div>
 </header>
@@ -273,48 +222,37 @@
 {/if}
 
 {#if loading}
-  <p class="loading" aria-busy="true">Memuatkan album…</p>
+  <p class="loading" aria-busy="true">Loading album…</p>
 {:else if detail}
   <div class="body">
     <section class="form">
       <label>
-        Klien
-        <select bind:value={clientId} onchange={onClientChange}>
-          {#each clients as client (client.id)}
-            <option value={client.id}>{client.name} (/s/{client.slug})</option>
-          {/each}
-          <option value="__new">+ Klien baru</option>
-        </select>
-      </label>
-
-      <label>
-        Nama album
-        <input type="text" bind:value={title} oninput={onTitleInput} placeholder="Contoh: Sanding" />
+        Album name
+        <input type="text" bind:value={title} placeholder="e.g. Annual Sports Day 2026" />
       </label>
 
       <fieldset>
-        <legend>Folder (dari /mnt/a/studio)</legend>
-        <p class="hint">Tick folder = folder tu dan semua folder di dalamnya masuk album. Untick folder di dalam = keluarkan dari album.</p>
-        <FolderPicker bind:rules />
+        <legend>Folder</legend>
+        <p class="hint">Everything inside this folder is in the album. Set a subfolder to <strong>Hidden</strong> to keep it off the public page.</p>
+        {#if roots.length > 1}
+          <p class="warn">This older album covers {roots.length} folders; only the first is shown here. Recreate it from the client page as one album per folder.</p>
+        {/if}
+        {#if rootFolderId}
+          {#key rootFolderId}
+            <AlbumTree bind:albums={tree} mode="album" {rootFolderId} />
+          {/key}
+        {:else}
+          <p class="hint">No folder. Delete this album and tick a folder on the client page.</p>
+        {/if}
       </fieldset>
     </section>
 
     <aside class="aside">
       <section class="panel">
-        <h2>Dalam album</h2>
-        <div class="folder-list">
-          {#each sortedRules as rule (rule.folderId)}
-            <div class:excluded={!rule.included}>
-              <span>{rule.included ? '✓' : '✕'} {rule.path === '.' ? '/ (semua)' : rule.path}</span>
-              <span class="count">{rule.included ? 'masuk' : 'keluar'}</span>
-            </div>
-          {:else}
-            <p class="empty">Belum tick folder.</p>
-          {/each}
-        </div>
+        <h2>On the public page</h2>
         <div class="total">
-          <span>Jumlah</span>
-          <span>{stats ? `${formatCount(stats.assetCount)} gambar · ${formatCount(stats.folderCount)} folder` : '…'}</span>
+          <span>Photos</span>
+          <span>{stats ? `${formatCount(stats.assetCount)} · ${formatCount(stats.folderCount)} folders` : formatCount(detail.album.assetCount)}</span>
         </div>
         <div class="preview">
           {#each Array(4) as _, index (index)}
@@ -326,45 +264,51 @@
         </div>
       </section>
 
-      {#if !isNew}
-        <section class="panel">
-          <h2>Thumbnail</h2>
-          {#if thumbs}
-            <div class="bar" aria-hidden="true">
-              <span style:width={`${thumbs.total ? (thumbs.ready / thumbs.total) * 100 : 100}%`}></span>
-            </div>
-            <span class="thumb-line">
-              {formatCount(thumbs.ready)} / {formatCount(thumbs.total)} siap{#if thumbs.failed > 0} · {formatCount(thumbs.failed)} gagal{/if}
-            </span>
-          {:else}
-            <span class="muted">Menyemak…</span>
-          {/if}
-          <button class="force" type="button" onclick={forceThumbs} disabled={thumbBusy || !thumbs || thumbs.pending === 0}>
-            {thumbBusy ? 'Menghantar…' : 'Jana thumbnail sekarang'}
-          </button>
-          {#if thumbNote}<span class="muted">{thumbNote}</span>{/if}
-        </section>
-      {/if}
+      <section class="panel">
+        <h2>Thumbnails</h2>
+        {#if thumbs}
+          <div class="bar" aria-hidden="true">
+            <span style:width={`${thumbs.total ? (thumbs.ready / thumbs.total) * 100 : 100}%`}></span>
+          </div>
+          <span class="thumb-line">
+            {formatCount(thumbs.ready)} / {formatCount(thumbs.total)} ready{#if thumbs.failed > 0} · {formatCount(thumbs.failed)} failed{/if}
+          </span>
+        {:else}
+          <span class="muted">Checking…</span>
+        {/if}
+        <button class="force" type="button" onclick={forceThumbs} disabled={thumbBusy || !thumbs || thumbs.pending === 0}>
+          {thumbBusy ? 'Queuing…' : 'Generate thumbnails now'}
+        </button>
+        {#if thumbNote}<span class="muted">{thumbNote}</span>{/if}
+      </section>
 
       <section class="panel">
-        <h2>Link album (untuk customer klien)</h2>
+        <h2>Album link</h2>
         <label>
-          Nama link
+          Link
           <span class="slug-field">
             <span class="prefix">johorstudio.com/s/</span>
-            <input type="text" bind:value={slug} oninput={onSlugInput} placeholder="nama-link" />
+            <input type="text" bind:value={slug} oninput={checkSlug} placeholder="album-link" />
           </span>
         </label>
         {#if slugState === 'free'}
-          <span class="ok">✓ Nama ni belum dipakai</span>
+          <span class="ok">✓ Available</span>
         {:else if slugState === 'taken'}
-          <span class="bad">Nama ni dah dipakai. Pilih yang lain.</span>
+          <span class="bad">Already used. Pick another.</span>
         {:else if slugState === 'checking'}
-          <span class="muted">Menyemak nama…</span>
+          <span class="muted">Checking…</span>
         {/if}
         <label class="download-row">
-          Benarkan klien download
+          Allow downloads
           <input type="checkbox" bind:checked={allowDownload} />
+        </label>
+        <label>
+          Client
+          <select bind:value={clientId}>
+            {#each clients as client (client.id)}
+              <option value={client.id}>{client.name} (/s/{client.slug})</option>
+            {/each}
+          </select>
         </label>
       </section>
     </aside>
@@ -372,48 +316,6 @@
 {/if}
 
 <style>
-  .danger {
-    height: 44px;
-    padding: 0 16px;
-    border: 1px solid #e3b4af;
-    border-radius: 6px;
-    background: #fff;
-    color: #8a2a24;
-    font-size: 15px;
-  }
-
-  .danger:disabled,
-  .force:disabled {
-    opacity: 0.6;
-  }
-
-  .bar {
-    height: 8px;
-    border-radius: 4px;
-    background: var(--mist);
-    overflow: hidden;
-  }
-
-  .bar span {
-    display: block;
-    height: 100%;
-    background: var(--teal-ink);
-  }
-
-  .thumb-line {
-    font-size: 14px;
-  }
-
-  .force {
-    height: 42px;
-    border: 0;
-    border-radius: 6px;
-    background: var(--teal-ink);
-    color: #fff;
-    font-size: 15px;
-    font-weight: 600;
-  }
-
   .head {
     display: flex;
     flex-wrap: wrap;
@@ -421,30 +323,26 @@
     justify-content: space-between;
     gap: 16px;
   }
-
   .titles {
     display: flex;
     flex-direction: column;
     gap: 4px;
   }
-
   .titles a {
     font-size: 14px;
   }
-
   h1 {
     font-size: 30px;
     font-weight: 700;
     font-stretch: 85%;
   }
-
   .actions {
     display: flex;
     gap: 10px;
   }
-
   .cancel,
-  .save {
+  .save,
+  .danger {
     height: 44px;
     padding: 0 18px;
     border-radius: 6px;
@@ -452,24 +350,27 @@
     display: inline-flex;
     align-items: center;
   }
-
   .cancel {
     border: 1px solid #c4ccce;
     color: var(--graphite);
     background: #fff;
   }
-
   .save {
     border: 0;
     background: var(--teal-ink);
     color: #fff;
     font-weight: 600;
   }
-
-  .save:disabled {
-    opacity: 0.65;
+  .danger {
+    border: 1px solid #e3b4af;
+    background: #fff;
+    color: #8a2a24;
   }
-
+  .save:disabled,
+  .danger:disabled,
+  .force:disabled {
+    opacity: 0.6;
+  }
   .error {
     margin: 0;
     padding: 10px 12px;
@@ -478,19 +379,24 @@
     border-radius: 6px;
     font-size: 14px;
   }
-
+  .warn {
+    margin: 0;
+    padding: 8px 10px;
+    background: #fff4dc;
+    color: #7a5a12;
+    border-radius: 6px;
+    font-size: 13px;
+  }
   .loading {
     color: var(--steel);
     font-size: 14px;
   }
-
   .body {
     display: flex;
     flex-wrap: wrap;
     gap: 24px;
     align-items: flex-start;
   }
-
   .form {
     flex: 999 1 420px;
     min-width: 0;
@@ -498,7 +404,6 @@
     flex-direction: column;
     gap: 20px;
   }
-
   .form > label,
   .panel label {
     display: flex;
@@ -507,7 +412,6 @@
     font-size: 14px;
     font-weight: 600;
   }
-
   select,
   .form input[type='text'] {
     height: 46px;
@@ -519,7 +423,6 @@
     background: #fff;
     color: var(--graphite);
   }
-
   fieldset {
     margin: 0;
     border: 1px solid var(--mist);
@@ -528,15 +431,18 @@
     padding: 16px;
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: 6px;
   }
-
   legend {
     font-size: 14px;
     font-weight: 600;
     padding: 0 6px;
   }
-
+  .hint {
+    margin: 0 0 6px;
+    font-size: 13px;
+    color: var(--steel);
+  }
   .aside {
     flex: 1 1 320px;
     max-width: 420px;
@@ -544,7 +450,6 @@
     flex-direction: column;
     gap: 16px;
   }
-
   .panel {
     background: #fff;
     border: 1px solid var(--mist);
@@ -554,67 +459,50 @@
     flex-direction: column;
     gap: 12px;
   }
-
   .panel h2 {
     font-size: 16px;
     font-weight: 600;
   }
-
-  .folder-list {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    font-size: 14px;
-  }
-
-  .folder-list > div {
-    display: flex;
-    justify-content: space-between;
-    gap: 8px;
-  }
-
-  .folder-list .excluded {
-    color: #8a2a24;
-  }
-
-  .hint {
-    margin: 0 0 8px;
-    font-size: 13px;
-    color: var(--steel);
-  }
-
-  .folder-list .count {
-    color: var(--steel);
-    flex: none;
-  }
-
-  .empty {
-    color: var(--steel);
-    font-size: 14px;
-  }
-
   .total {
-    border-top: 1px solid var(--mist);
-    padding-top: 10px;
     display: flex;
     justify-content: space-between;
     font-size: 15px;
     font-weight: 600;
   }
-
   .preview {
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 3px;
   }
-
   .preview-tile {
     position: relative;
     height: 60px;
     background: linear-gradient(135deg, #d8cfc4, #9fb0a8);
     overflow: hidden;
   }
-
+  .bar {
+    height: 8px;
+    border-radius: 4px;
+    background: var(--mist);
+    overflow: hidden;
+  }
+  .bar span {
+    display: block;
+    height: 100%;
+    background: var(--teal-ink);
+  }
+  .thumb-line {
+    font-size: 14px;
+  }
+  .force {
+    height: 42px;
+    border: 0;
+    border-radius: 6px;
+    background: var(--teal-ink);
+    color: #fff;
+    font-size: 15px;
+    font-weight: 600;
+  }
   .slug-field {
     display: flex;
     align-items: center;
@@ -624,7 +512,6 @@
     overflow: hidden;
     font-weight: 400;
   }
-
   .prefix {
     padding: 0 10px;
     background: var(--mist);
@@ -635,7 +522,6 @@
     color: var(--steel);
     flex: none;
   }
-
   .slug-field input {
     border: 0 !important;
     outline: 0;
@@ -645,26 +531,21 @@
     height: 100%;
     font-size: 15px;
   }
-
   .ok,
   .bad,
   .muted {
     font-size: 13px;
     font-weight: 400;
   }
-
   .ok {
     color: var(--teal-ink);
   }
-
   .bad {
     color: #8a2a24;
   }
-
   .muted {
     color: var(--steel);
   }
-
   .download-row {
     flex-direction: row !important;
     align-items: center;
@@ -673,13 +554,11 @@
     font-size: 15px;
     min-height: 44px;
   }
-
   .download-row input {
     width: 20px;
     height: 20px;
     accent-color: var(--teal-ink);
   }
-
   @media (max-width: 700px) {
     .aside {
       max-width: none;

@@ -57,8 +57,8 @@
       );
       days = Object.fromEntries(pages);
     } catch (error) {
-      console.error('timeline gagal', error);
-      notice = 'Data timeline tak dapat dimuatkan.';
+      console.error('timeline failed', error);
+      notice = 'Could not load the timeline.';
     }
   }
 
@@ -67,9 +67,9 @@
     busy = true;
     try {
       await api.rescan();
-      notice = 'Imbas semula diminta.';
+      notice = 'Rescan requested.';
     } catch {
-      notice = 'Imbas semula gagal dihantar.';
+      notice = 'Could not start the rescan.';
     } finally {
       busy = false;
       window.setTimeout(() => (notice = ''), 4000);
@@ -83,24 +83,24 @@
 
 <header class="head">
   <h1>Timeline</h1>
-  <div role="group" aria-label="Mod paparan" class="segmented">
-    <a href="/s/admin" class="on" aria-current="page">Tarikh</a>
+  <div role="group" aria-label="View mode" class="segmented">
+    <a href="/s/admin" class="on" aria-current="page">Date</a>
     <a href="/s/admin/folders">Folder</a>
   </div>
   <label class="search">
     <Icon name="search" size={16} />
-    <input type="search" aria-label="Cari" placeholder="Cari nama fail atau tarikh" bind:value={query} />
+    <input type="search" aria-label="Search" placeholder="Search file name or date" bind:value={query} />
   </label>
   <button type="button" class="rescan" onclick={rescan} disabled={busy}>
     <Icon name="refresh" size={16} strokeWidth={2} />
-    Imbas semula
+    Rescan
   </button>
 </header>
 
 <div class="meta">
-  <span class="count"><i aria-hidden="true"></i>{formatCount(status?.assets)} gambar</span>
-  <span>Thumbnail dalam giliran: {formatCount(status?.pendingThumbs)}</span>
-  <span>Imbas terakhir: {status?.lastScanAt ? formatLocalClock(status.lastScanAt) : '—'}</span>
+  <span class="count"><i aria-hidden="true"></i>{formatCount(status?.assets)} photos</span>
+  <span>Thumbnails queued: {formatCount(status?.pendingThumbs)}</span>
+  <span>Last scan: {status?.lastScanAt ? formatLocalClock(status.lastScanAt) : '—'}</span>
 </div>
 
 {#if notice}
@@ -125,16 +125,16 @@
             onopen={(id) => (viewerId = id)}
           />
         {:else}
-          <p class="loading-row" aria-busy="true">Memuatkan…</p>
+          <p class="loading-row" aria-busy="true">Loading…</p>
         {/if}
       </section>
     {:else}
-      <p class="empty">Tiada hari sepadan dengan carian.</p>
+      <p class="empty">No days match your search.</p>
     {/each}
   </div>
 
   {#if years.length}
-    <nav aria-label="Lompat ikut bulan" class="months">
+    <nav aria-label="Jump to month" class="months">
       {#each years as group (group.year)}
         <span class="year">{group.year}</span>
         {#each group.months as month (month.key)}

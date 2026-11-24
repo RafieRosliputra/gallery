@@ -35,24 +35,24 @@ interface ZipRequest {
 
 function parseZipRequest(body: unknown): ZipRequest | string {
   const record = bodyRecord(body);
-  if (!record) return 'Permintaan tidak sah.';
+  if (!record) return 'Invalid request.';
   const albumSlug = record['albumSlug'];
-  if (typeof albumSlug !== 'string' || albumSlug.trim() === '') return 'albumSlug diperlukan.';
+  if (typeof albumSlug !== 'string' || albumSlug.trim() === '') return 'albumSlug is required.';
 
   const cam = record['cam'];
-  if (cam !== undefined && cam !== null && typeof cam !== 'string') return 'cam tidak sah.';
+  if (cam !== undefined && cam !== null && typeof cam !== 'string') return 'Invalid cam.';
   const camera = typeof cam === 'string' && cam.trim() !== '' && cam.toLowerCase() !== 'all' ? cam.trim() : null;
 
   const idsRaw = record['ids'];
   let ids: string[] | null = null;
   if (idsRaw !== undefined && idsRaw !== null) {
-    if (!Array.isArray(idsRaw)) return 'ids mesti senarai.';
+    if (!Array.isArray(idsRaw)) return 'ids must be a list.';
     if (idsRaw.length > MAX_IDS) return `ids melebihi had ${MAX_IDS}.`;
     const parsed: string[] = [];
     for (const value of idsRaw) {
-      if (typeof value !== 'string' && typeof value !== 'number') return 'ids tidak sah.';
+      if (typeof value !== 'string' && typeof value !== 'number') return 'Invalid ids.';
       const id = String(value);
-      if (!/^\d{1,19}$/.test(id)) return 'ids tidak sah.';
+      if (!/^\d{1,19}$/.test(id)) return 'Invalid ids.';
       parsed.push(id);
     }
     ids = parsed;
@@ -97,7 +97,7 @@ export function registerZipRoute(app: FastifyInstance, deps: ZipDeps): void {
     const album = await findAlbumBySlug(deps.pool, parsed.albumSlug);
     if (!album) return sendError(reply, 404, 'not_found', NOT_FOUND_MESSAGE);
     if (!album.allowDownload) {
-      return sendError(reply, 403, 'download_disabled', 'Muat turun tidak dibenarkan untuk album ini.');
+      return sendError(reply, 403, 'download_disabled', 'Downloads are turned off for this album.');
     }
 
     const folderIds = await albumFolderIds(deps.pool, album.id);

@@ -29,7 +29,7 @@ test.describe('screenshots', () => {
   test('login and admin routes', async ({ page }, info) => {
     await page.goto(`${BASE}`);
     await settle(page);
-    await expect(page.getByRole('heading', { name: 'Log masuk admin' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Admin sign in' })).toBeVisible();
     await shot(page, info, 'login');
 
     await adminCookie(page);
@@ -39,6 +39,7 @@ test.describe('screenshots', () => {
       ['admin-albums', '/admin/albums'],
       ['admin-album-edit', '/admin/albums/1'],
       ['admin-clients', '/admin/clients'],
+      ['admin-client-albums', '/admin/clients/1'],
       ['admin-status', '/admin/status']
     ] as const) {
       await page.goto(`${BASE}${route}`);
@@ -65,7 +66,7 @@ test.describe('screenshots', () => {
     await expect(page.getByRole('heading', { name: 'Tadika Mawar' })).toBeVisible();
     await shot(page, info, 'portal');
 
-    await page.locator('a[aria-label="Buka album Konvo 2026"]').click();
+    await page.locator('a[aria-label="Open album Konvo 2026"]').click();
     await expect(page).toHaveURL(/mawar-konvo-2026/);
     await settle(page);
     await shot(page, info, 'album-from-portal');
@@ -78,12 +79,12 @@ test.describe('screenshots', () => {
 
     await page.goto(`${BASE}/mawar-konvo-2026?f=1`);
     await settle(page);
-    await expect(page.getByRole('button', { name: 'Buka gambar' }).first()).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Open photo' }).first()).toBeVisible();
     await shot(page, info, 'album-folder');
 
     await page.goto(`${BASE}/mawar-konvo-2026?p=mawar-konvo-2026--pagi-4`);
     await settle(page);
-    await expect(page.getByRole('dialog', { name: 'Lihat gambar' })).toBeVisible();
+    await expect(page.getByRole('dialog', { name: 'View photo' })).toBeVisible();
     await shot(page, info, 'viewer');
 
     await page.goto(`${BASE}/mawar-konvo-2026?fav=1`);
@@ -98,14 +99,14 @@ test.describe('screenshots', () => {
 
     await page.goto(`${BASE}/tak-wujud`);
     await settle(page);
-    await expect(page.getByRole('heading', { name: 'Link ni tak dijumpai' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'This link was not found' })).toBeVisible();
     await shot(page, info, 'not-found');
   });
 
   test('album without downloads hides every download control', async ({ page }, info) => {
     await page.goto(`${BASE}/mawar-raya-2026`);
     await settle(page);
-    await expect(page.getByRole('button', { name: 'Download semua (ZIP)' })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Download all (ZIP)' })).toHaveCount(0);
     await shot(page, info, 'album-no-download');
   });
 });

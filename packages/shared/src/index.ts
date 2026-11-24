@@ -2,6 +2,29 @@
 export const SLUG_PATTERN = '^[a-z0-9-]{3,60}$';
 export const SLUG_REGEX = new RegExp(SLUG_PATTERN);
 
+/** Folder/album name → link slug: lower-case a-z 0-9 and dashes, 3–60 chars. */
+export function slugify(value: string): string {
+  const base = value
+    .toLowerCase()
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 60)
+    .replace(/-+$/g, '');
+  return base.length >= 3 ? base : `album-${base || 'new'}`.replace(/-+$/g, '').slice(0, 60);
+}
+
+/** Album list row for one client in the admin (each album = one folder). */
+export interface ClientAlbumEntry {
+  id: string;
+  title: string;
+  slug: string;
+  allowDownload: boolean;
+  count: number;
+  rules: { folderId: string; path: string; included: boolean }[];
+}
+
 /** Response body of `GET /s/api/health`. */
 export interface HealthResponse {
   ok: boolean;

@@ -12,7 +12,7 @@
     theme = 'dark',
     favourites = null,
     onopen = undefined,
-    ariaLabel = 'Galeri gambar'
+    ariaLabel = 'Photo gallery'
   }: {
     assets: Asset[];
     targetRowHeight?: number;
@@ -48,7 +48,7 @@
               class="tile"
               data-asset-id={tile.id}
               style:width={`${tile.width}px`}
-              aria-label="Buka gambar"
+              aria-label="Open photo"
               onclick={() => onopen?.(tile.id)}
             >
               <Photo {asset} {theme} />
@@ -69,7 +69,7 @@
     </div>
   {/each}
   {#if width > 0 && assets.length === 0}
-    <p class="empty">Tiada gambar.</p>
+    <p class="empty">No photos.</p>
   {/if}
 </div>
 

@@ -342,3 +342,11 @@ Conflicts return `409 {error:"slug_conflict"}` with a BM message.
 - `GET /s/api/admin/albums/:id/thumbs` → `{ total, ready, pending, failed }`; `POST` same path resets attempts and queues every missing thumbnail at priority 10 (ahead of the backlog) → `{ queued }`. Public `GET /s/api/album/:slug` carries `viewerIsAdmin` so the public page can offer the button to a signed-in admin.
 - Admin UI deletes albums (`DELETE /s/api/admin/albums/:id`) and clients (`DELETE /s/api/admin/clients/:id`, cascades to their albums). Source photos are never touched.
 - Scanner move detection (`scan/moves.ts`): a missing asset and a newer live asset with the same file name, size and mtime (±2 s) merge into the old row (id, thumbnails, favourites kept). Folders whose moved files all agree on one new location, with nothing left behind, are logged in `folder_move` and their album rules follow. `GET /s/api/admin/moves` lists them (Status page "Folder dipindah").
+
+## One album per folder (client page)
+
+- `GET /s/api/admin/clients/:id/albums` → `{ client, albums: [{ id, title, slug, allowDownload, count, rules }] }`
+- `POST /s/api/admin/clients/:id/albums` body `{ folderId }` → creates an album named after the folder, link slug from the folder name (`-2`, `-3` … when taken), rule = that folder included.
+- Hidden subfolders are exclude rules of that album (`PUT /s/api/admin/albums/:id/folders`).
+- Admin UI: Clients → client page ticks folders (each tick = album) and switches subfolders Visible/Hidden; album page edits name, link, downloads, hidden subfolders.
+- UI and API messages are English.

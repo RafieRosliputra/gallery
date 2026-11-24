@@ -53,20 +53,20 @@
 </script>
 
 <div class="backdrop">
-  <button type="button" class="scrim" aria-label="Tutup" onclick={onclose}></button>
+  <button type="button" class="scrim" aria-label="Close" onclick={onclose}></button>
   <div role="dialog" aria-modal="true" aria-labelledby="share-title" class="sheet" tabindex="-1" bind:this={sheet}>
     <span class="handle" aria-hidden="true"></span>
     <div class="album">
       <span class="cover">{#if cover}<Photo asset={cover} />{/if}</span>
       <div class="titles">
-        <h2 id="share-title">Kongsi "{album.title}"</h2>
-        <span>{formatCount(album.assetCount)} gambar{album.cameras.length > 1 ? ` · ${album.cameras.length} kamera` : ''}</span>
+        <h2 id="share-title">Share "{album.title}"</h2>
+        <span>{formatCount(album.assetCount)} photos</span>
       </div>
     </div>
 
     <div class="link">
       <span class="url">johorstudio.com/s/<em>{album.slug}</em></span>
-      <button type="button" class="copy" onclick={copy}>{copied ? 'Disalin' : 'Salin'}</button>
+      <button type="button" class="copy" onclick={copy}>{copied ? 'Copied' : 'Copy'}</button>
     </div>
 
     <div class="actions">
@@ -80,8 +80,8 @@
       </button>
     </div>
 
-    <p class="note">Penerima nampak album ni sahaja. Album lain {album.clientName} tak kelihatan.</p>
-    <span class="sr-only" role="status">{copied ? 'Link disalin' : ''}</span>
+    <p class="note">People with this link see this album only — not {album.clientName}'s other albums.</p>
+    <span class="sr-only" role="status">{copied ? 'Link copied' : ''}</span>
   </div>
 </div>
 

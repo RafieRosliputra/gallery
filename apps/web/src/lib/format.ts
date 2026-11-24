@@ -1,5 +1,5 @@
-const MONTHS = ['Jan', 'Feb', 'Mac', 'Apr', 'Mei', 'Jun', 'Jul', 'Ogo', 'Sep', 'Okt', 'Nov', 'Dis'];
-const DAYS = ['Ahad', 'Isnin', 'Selasa', 'Rabu', 'Khamis', 'Jumaat', 'Sabtu'];
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 const number = new Intl.NumberFormat('en-MY');
 
 export function formatCount(value: number | null | undefined): string {
@@ -36,10 +36,10 @@ export function formatMonthLabel(year: number, month: number): string {
 }
 
 export function formatCameraCount(count: number): string {
-  return `${formatCount(count)} kamera`;
+  return `${formatCount(count)} ${count === 1 ? 'camera' : 'cameras'}`;
 }
 
-/** "22 Nov 2026 · 1,102 gambar · 2 kamera" (portal/album card meta). */
+/** "22 Nov 2026 · 1,102 photos · 2 cameras" (portal/album card meta). */
 export function albumMeta(album: {
   takenAt: string | null;
   assetCount: number;
@@ -47,7 +47,7 @@ export function albumMeta(album: {
 }): string {
   const parts: string[] = [];
   if (album.takenAt) parts.push(formatShortDate(album.takenAt));
-  parts.push(`${formatCount(album.assetCount)} gambar`);
+  parts.push(`${formatCount(album.assetCount)} photos`);
   if (album.cameras.length > 1) parts.push(formatCameraCount(album.cameras.length));
   return parts.join(' · ');
 }

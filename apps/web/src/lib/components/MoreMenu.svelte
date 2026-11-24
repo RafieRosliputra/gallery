@@ -6,7 +6,7 @@
     open,
     onclose,
     items,
-    label = 'Lagi'
+    label = 'More'
   }: {
     open: boolean;
     onclose: () => void;
@@ -25,7 +25,7 @@
 </script>
 
 {#if open}
-  <button type="button" class="scrim" aria-label="Tutup menu" onclick={onclose}></button>
+  <button type="button" class="scrim" aria-label="Close menu" onclick={onclose}></button>
   <div class="panel" role="menu" aria-label={label}>
     {#each items as item (item.label)}
       {#if item.href}

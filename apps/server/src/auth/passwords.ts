@@ -40,11 +40,11 @@ export function verifyAgainstDummy(password: string): Promise<boolean> {
 
 export function validateNewPassword(password: string): string | null {
   if (password.length < PASSWORD_MIN_LENGTH) {
-    return `Kata laluan mesti sekurang-kurangnya ${PASSWORD_MIN_LENGTH} aksara.`;
+    return `Password must be at least ${PASSWORD_MIN_LENGTH} characters.`;
   }
   if (password.length > PASSWORD_MAX_LENGTH) {
-    return `Kata laluan mesti tidak melebihi ${PASSWORD_MAX_LENGTH} aksara.`;
+    return `Password must be at most ${PASSWORD_MAX_LENGTH} characters.`;
   }
-  if (password.includes('\0')) return 'Kata laluan mengandungi aksara tidak sah.';
+  if (password.includes('\0')) return 'Password contains an invalid character.';
   return null;
 }

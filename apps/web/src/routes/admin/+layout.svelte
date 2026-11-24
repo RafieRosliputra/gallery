@@ -34,7 +34,7 @@
   </AdminShell>
 {:else}
   <div class="admin-theme loading" aria-busy="true">
-    <span class="sr-only">Menyemak sesi…</span>
+    <span class="sr-only">Checking session…</span>
   </div>
 {/if}
 

@@ -1,8 +1,8 @@
 import type { FastifyReply } from 'fastify';
 import type { ApiError } from '@gallery/shared';
 
-export const NOT_FOUND_MESSAGE = 'Pautan tidak dijumpai.';
-export const UNAUTHORIZED_MESSAGE = 'Sesi tidak sah atau telah tamat.';
+export const NOT_FOUND_MESSAGE = 'Link not found.';
+export const UNAUTHORIZED_MESSAGE = 'Session is invalid or has expired.';
 
 export function sendError(
   reply: FastifyReply,

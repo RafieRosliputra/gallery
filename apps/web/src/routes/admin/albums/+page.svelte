@@ -14,8 +14,8 @@
     try {
       albums = await api.getAdminAlbums();
     } catch (cause) {
-      console.error('album gagal', cause);
-      error = 'Senarai album tak dapat dimuatkan.';
+      console.error('albums failed', cause);
+      error = 'Could not load albums.';
     } finally {
       loaded = true;
     }
@@ -23,15 +23,15 @@
 </script>
 
 <svelte:head>
-  <title>Album · JohorStudio admin</title>
+  <title>Albums · JohorStudio admin</title>
 </svelte:head>
 
 <header class="head">
   <div class="titles">
-    <h1>Album</h1>
-    <span>Satu album boleh ambil gambar dari banyak folder. Fail asal tak dipindah.</span>
+    <h1>Albums</h1>
+    <span>Each album is one folder of a client. Original files are never moved.</span>
   </div>
-  <a class="new" href={`${base}/admin/albums/new`}>+ Album baru</a>
+  <a class="new" href={`${base}/admin/clients`}>+ New album</a>
 </header>
 
 {#if error}<p class="error" role="alert">{error}</p>{/if}
@@ -55,11 +55,11 @@
       </div>
       <div class="text">
         <span class="title">{album.title}</span>
-        <span class="meta">{album.folderCount} folder · {formatCount(album.assetCount)} gambar</span>
+        <span class="meta">{album.clientName} · {formatCount(album.assetCount)} photos</span>
         {#if album.slug}
           <span class="badge">/s/{album.slug}</span>
         {:else}
-          <span class="badge empty">Belum ada link</span>
+          <span class="badge empty">No link yet</span>
         {/if}
       </div>
     </a>
@@ -67,9 +67,9 @@
 </div>
 
 {#if !loaded}
-  <p class="loading" aria-busy="true">Memuatkan album…</p>
+  <p class="loading" aria-busy="true">Loading albums…</p>
 {:else if !albums.length && !error}
-  <p class="loading">Belum ada album. Tekan <a href={`${base}/admin/albums/new`}>+ Album baru</a>, atau pilih folder di Timeline → Folder.</p>
+  <p class="loading">No albums yet. Open a client under <a href={`${base}/admin/clients`}>Clients</a> and tick a folder.</p>
 {/if}
 
 <style>

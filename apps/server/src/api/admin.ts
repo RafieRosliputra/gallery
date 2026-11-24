@@ -1,7 +1,7 @@
 import path from 'node:path';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { Pool } from 'pg';
-import { SLUG_REGEX, type AdminFolderNode, type AdminFolderTreeResponse, type AdminStatusResponse } from '@gallery/shared';
+import { SLUG_REGEX, slugify, type AdminFolderNode, type AdminFolderTreeResponse, type AdminStatusResponse } from '@gallery/shared';
 import { requireAdmin, type AuthDeps } from '../auth/routes.js';
 import { bodyRecord, NOT_FOUND_MESSAGE, parseBigIntId, sendError } from './http.js';
 import { albumFolderIds, findAlbumById, findAlbumBySlug, findClientById } from './repository.js';
@@ -19,9 +19,9 @@ export interface AdminApiDeps {
   enqueueUrgentThumbs?: (assetIds: string[]) => Promise<number>;
 }
 
-const SLUG_MESSAGE = 'Slug mesti 3–60 aksara: huruf kecil a-z, nombor 0-9 dan tanda sengkang.';
-const SLUG_CONFLICT = 'Slug sudah digunakan oleh klien atau album lain.';
-const NAME_MESSAGE = 'Nama mesti 1–120 aksara.';
+const SLUG_MESSAGE = 'Link must be 3–60 characters: lower-case a-z, digits 0-9 and dashes.';
+const SLUG_CONFLICT = 'That link is already used by another client or album.';
+const NAME_MESSAGE = 'Name must be 1–120 characters.';
 
 function pgCode(error: unknown): string | undefined {
   return (error as { code?: string }).code;
@@ -90,7 +90,7 @@ export function registerAdminRoutes(app: FastifyInstance, deps: AdminApiDeps): v
       return reply.send(body);
     } catch (error) {
       request.log.error({ err: error }, 'status query failed');
-      return reply.code(503).send({ error: 'status_unavailable', message: 'Status tidak tersedia.' });
+      return reply.code(503).send({ error: 'status_unavailable', message: 'Status is not available.' });
     }
   });
 
@@ -109,7 +109,7 @@ export function registerAdminRoutes(app: FastifyInstance, deps: AdminApiDeps): v
     const session = await guard(request, reply);
     if (!session) return reply;
     const body = bodyRecord(request.body);
-    if (!body) return sendError(reply, 400, 'bad_request', 'Permintaan tidak sah.');
+    if (!body) return sendError(reply, 400, 'bad_request', 'Invalid request.');
     const { name, slug } = body;
     if (!validName(name)) return sendError(reply, 400, 'bad_name', NAME_MESSAGE);
     if (!validSlug(slug)) return sendError(reply, 400, 'bad_slug', SLUG_MESSAGE);
@@ -132,14 +132,14 @@ export function registerAdminRoutes(app: FastifyInstance, deps: AdminApiDeps): v
     const session = await guard(request, reply);
     if (!session) return reply;
     const id = parseBigIntId((request.params as { id: string }).id);
-    if (!id) return sendError(reply, 400, 'bad_id', 'ID tidak sah.');
+    if (!id) return sendError(reply, 400, 'bad_id', 'Invalid id.');
     const body = bodyRecord(request.body);
-    if (!body) return sendError(reply, 400, 'bad_request', 'Permintaan tidak sah.');
+    if (!body) return sendError(reply, 400, 'bad_request', 'Invalid request.');
 
     const name = body['name'];
     const slug = body['slug'];
     if (name === undefined && slug === undefined) {
-      return sendError(reply, 400, 'bad_request', 'Tiada perubahan.');
+      return sendError(reply, 400, 'bad_request', 'Nothing to change.');
     }
     if (name !== undefined && !validName(name)) return sendError(reply, 400, 'bad_name', NAME_MESSAGE);
     if (slug !== undefined && !validSlug(slug)) return sendError(reply, 400, 'bad_slug', SLUG_MESSAGE);
@@ -163,10 +163,102 @@ export function registerAdminRoutes(app: FastifyInstance, deps: AdminApiDeps): v
     const session = await guard(request, reply);
     if (!session) return reply;
     const id = parseBigIntId((request.params as { id: string }).id);
-    if (!id) return sendError(reply, 400, 'bad_id', 'ID tidak sah.');
+    if (!id) return sendError(reply, 400, 'bad_id', 'Invalid id.');
     const result = await deps.pool.query('DELETE FROM client WHERE id = $1', [id]);
     if (result.rowCount === 0) return sendError(reply, 404, 'not_found', NOT_FOUND_MESSAGE);
     return reply.code(204).send();
+  });
+
+  // One client's albums with their folder rules (each album = one ticked folder).
+  app.get('/s/api/admin/clients/:id/albums', async (request, reply) => {
+    const session = await guard(request, reply);
+    if (!session) return reply;
+    const id = parseBigIntId((request.params as { id: string }).id);
+    if (!id) return sendError(reply, 400, 'bad_id', 'Invalid id.');
+    const client = await findClientById(deps.pool, id);
+    if (!client) return sendError(reply, 404, 'not_found', NOT_FOUND_MESSAGE);
+    const { rows } = await deps.pool.query<{
+      id: string;
+      title: string;
+      slug: string;
+      allow_download: boolean;
+      count: number;
+      rules: { folderId: string; path: string; included: boolean }[];
+    }>(
+      `SELECT a.id::text AS id, a.title, a.slug, a.allow_download,
+              (SELECT count(*) FROM asset x
+               WHERE x.deleted_at IS NULL AND x.folder_id IN (SELECT fid FROM album_scope(a.id)))::int AS count,
+              COALESCE((SELECT json_agg(json_build_object('folderId', af.folder_id::text, 'path', f.path, 'included', af.included)
+                                  ORDER BY f.path)
+                        FROM album_folder af JOIN folder f ON f.id = af.folder_id
+                        WHERE af.album_id = a.id), '[]'::json) AS rules
+       FROM album a WHERE a.client_id = $1
+       ORDER BY a.created_at DESC, a.id DESC`,
+      [id],
+    );
+    return reply.send({
+      client,
+      albums: rows.map((row) => ({
+        id: row.id,
+        title: row.title,
+        slug: row.slug,
+        allowDownload: row.allow_download,
+        count: row.count,
+        rules: row.rules,
+      })),
+    });
+  });
+
+  // Tick a folder on the client page: it becomes an album named after the folder,
+  // with a link slug derived from that name (made unique with -2, -3 …).
+  app.post('/s/api/admin/clients/:id/albums', async (request, reply) => {
+    const session = await guard(request, reply);
+    if (!session) return reply;
+    const id = parseBigIntId((request.params as { id: string }).id);
+    if (!id) return sendError(reply, 400, 'bad_id', 'Invalid id.');
+    const raw = bodyRecord(request.body)?.['folderId'];
+    const folderId = typeof raw === 'string' ? parseBigIntId(raw) : null;
+    if (!folderId) return sendError(reply, 400, 'bad_id', 'Invalid folder id.');
+    if (!(await findClientById(deps.pool, id))) return sendError(reply, 404, 'not_found', NOT_FOUND_MESSAGE);
+    const folder = (await deps.pool.query<{ path: string }>('SELECT path FROM folder WHERE id = $1', [folderId])).rows[0];
+    if (!folder) return sendError(reply, 400, 'bad_folder', 'Folder not found.');
+
+    const title = (folder.path === '.' ? 'All photos' : path.posix.basename(folder.path)).slice(0, 120);
+    const base = slugify(title);
+    for (let attempt = 1; attempt <= 50; attempt += 1) {
+      const suffix = attempt === 1 ? '' : `-${attempt}`;
+      const slug = `${base.slice(0, 60 - suffix.length).replace(/-+$/g, '')}${suffix}`;
+      const client = await deps.pool.connect();
+      try {
+        await client.query('BEGIN');
+        const inserted = await client.query<{ id: string }>(
+          'INSERT INTO album (client_id, title, slug, allow_download) VALUES ($1, $2, $3, true) RETURNING id::text AS id',
+          [id, title, slug],
+        );
+        const albumId = inserted.rows[0]?.id;
+        await client.query(
+          'INSERT INTO album_folder (album_id, folder_id, recursive, included) VALUES ($1, $2, true, true)',
+          [albumId, folderId],
+        );
+        await client.query('COMMIT');
+        return reply.code(201).send({
+          album: {
+            id: albumId,
+            title,
+            slug,
+            allowDownload: true,
+            count: 0,
+            rules: [{ folderId, path: folder.path, included: true }],
+          },
+        });
+      } catch (error) {
+        await client.query('ROLLBACK').catch(() => undefined);
+        if (pgCode(error) !== '23505') throw error;
+      } finally {
+        client.release();
+      }
+    }
+    return conflict(reply);
   });
 
   app.get('/s/api/admin/albums', async (request, reply) => {
@@ -176,7 +268,7 @@ export function registerAdminRoutes(app: FastifyInstance, deps: AdminApiDeps): v
     let clientId: string | null = null;
     if (typeof clientIdRaw === 'string' && clientIdRaw !== '') {
       clientId = parseBigIntId(clientIdRaw);
-      if (!clientId) return sendError(reply, 400, 'bad_id', 'ID klien tidak sah.');
+      if (!clientId) return sendError(reply, 400, 'bad_id', 'Invalid client id.');
     }
     // One statement for the whole list: scope, count, distinct cameras and up
     // to three covers per album. The admin UI must not fan out per album.
@@ -234,20 +326,20 @@ export function registerAdminRoutes(app: FastifyInstance, deps: AdminApiDeps): v
     const session = await guard(request, reply);
     if (!session) return reply;
     const body = bodyRecord(request.body);
-    if (!body) return sendError(reply, 400, 'bad_request', 'Permintaan tidak sah.');
+    if (!body) return sendError(reply, 400, 'bad_request', 'Invalid request.');
     const clientIdRaw = body['client_id'] ?? body['clientId'];
     const title = body['title'];
     const slug = body['slug'];
     const allowDownload = body['allow_download'] ?? body['allowDownload'];
     const clientId = typeof clientIdRaw === 'string' ? parseBigIntId(clientIdRaw) : null;
-    if (!clientId) return sendError(reply, 400, 'bad_id', 'ID klien tidak sah.');
-    if (!validName(title)) return sendError(reply, 400, 'bad_title', 'Tajuk mesti 1–120 aksara.');
+    if (!clientId) return sendError(reply, 400, 'bad_id', 'Invalid client id.');
+    if (!validName(title)) return sendError(reply, 400, 'bad_title', 'Title must be 1–120 characters.');
     if (!validSlug(slug)) return sendError(reply, 400, 'bad_slug', SLUG_MESSAGE);
     if (allowDownload !== undefined && typeof allowDownload !== 'boolean') {
-      return sendError(reply, 400, 'bad_request', 'allow_download mesti boolean.');
+      return sendError(reply, 400, 'bad_request', 'allow_download must be a boolean.');
     }
     if (!(await findClientById(deps.pool, clientId))) {
-      return sendError(reply, 400, 'bad_client', 'Klien tidak dijumpai.');
+      return sendError(reply, 400, 'bad_client', 'Client not found.');
     }
 
     try {
@@ -276,32 +368,32 @@ export function registerAdminRoutes(app: FastifyInstance, deps: AdminApiDeps): v
     const session = await guard(request, reply);
     if (!session) return reply;
     const id = parseBigIntId((request.params as { id: string }).id);
-    if (!id) return sendError(reply, 400, 'bad_id', 'ID tidak sah.');
+    if (!id) return sendError(reply, 400, 'bad_id', 'Invalid id.');
     const body = bodyRecord(request.body);
-    if (!body) return sendError(reply, 400, 'bad_request', 'Permintaan tidak sah.');
+    if (!body) return sendError(reply, 400, 'bad_request', 'Invalid request.');
 
     const clientIdRaw = body['client_id'] ?? body['clientId'];
     const title = body['title'];
     const slug = body['slug'];
     const allowDownload = body['allow_download'] ?? body['allowDownload'];
     if (clientIdRaw === undefined && title === undefined && slug === undefined && allowDownload === undefined) {
-      return sendError(reply, 400, 'bad_request', 'Tiada perubahan.');
+      return sendError(reply, 400, 'bad_request', 'Nothing to change.');
     }
     let clientId: string | null = null;
     if (clientIdRaw !== undefined) {
       if (typeof clientIdRaw !== 'string' || !(clientId = parseBigIntId(clientIdRaw))) {
-        return sendError(reply, 400, 'bad_id', 'ID klien tidak sah.');
+        return sendError(reply, 400, 'bad_id', 'Invalid client id.');
       }
       if (!(await findClientById(deps.pool, clientId))) {
-        return sendError(reply, 400, 'bad_client', 'Klien tidak dijumpai.');
+        return sendError(reply, 400, 'bad_client', 'Client not found.');
       }
     }
     if (title !== undefined && !validName(title)) {
-      return sendError(reply, 400, 'bad_title', 'Tajuk mesti 1–120 aksara.');
+      return sendError(reply, 400, 'bad_title', 'Title must be 1–120 characters.');
     }
     if (slug !== undefined && !validSlug(slug)) return sendError(reply, 400, 'bad_slug', SLUG_MESSAGE);
     if (allowDownload !== undefined && typeof allowDownload !== 'boolean') {
-      return sendError(reply, 400, 'bad_request', 'allow_download mesti boolean.');
+      return sendError(reply, 400, 'bad_request', 'allow_download must be a boolean.');
     }
 
     try {
@@ -339,7 +431,7 @@ export function registerAdminRoutes(app: FastifyInstance, deps: AdminApiDeps): v
     const session = await guard(request, reply);
     if (!session) return reply;
     const id = parseBigIntId((request.params as { id: string }).id);
-    if (!id) return sendError(reply, 400, 'bad_id', 'ID tidak sah.');
+    if (!id) return sendError(reply, 400, 'bad_id', 'Invalid id.');
     const result = await deps.pool.query('DELETE FROM album WHERE id = $1', [id]);
     if (result.rowCount === 0) return sendError(reply, 404, 'not_found', NOT_FOUND_MESSAGE);
     return reply.code(204).send();
@@ -349,7 +441,7 @@ export function registerAdminRoutes(app: FastifyInstance, deps: AdminApiDeps): v
     const session = await guard(request, reply);
     if (!session) return reply;
     const id = parseBigIntId((request.params as { id: string }).id);
-    if (!id) return sendError(reply, 400, 'bad_id', 'ID tidak sah.');
+    if (!id) return sendError(reply, 400, 'bad_id', 'Invalid id.');
     if (!(await findAlbumById(deps.pool, id))) return sendError(reply, 404, 'not_found', NOT_FOUND_MESSAGE);
     const { rows } = await deps.pool.query<{ folder_id: string; path: string; recursive: boolean; included: boolean }>(
       `SELECT af.folder_id, f.path, af.recursive, af.included
@@ -373,9 +465,9 @@ export function registerAdminRoutes(app: FastifyInstance, deps: AdminApiDeps): v
     const session = await guard(request, reply);
     if (!session) return reply;
     const id = parseBigIntId((request.params as { id: string }).id);
-    if (!id) return sendError(reply, 400, 'bad_id', 'ID tidak sah.');
+    if (!id) return sendError(reply, 400, 'bad_id', 'Invalid id.');
     const rules = parseRules(bodyRecord(request.body)?.['rules']);
-    if (!rules) return sendError(reply, 400, 'bad_rules', 'Senarai folder tidak sah.');
+    if (!rules) return sendError(reply, 400, 'bad_rules', 'Invalid folder list.');
     if (!(await findAlbumById(deps.pool, id))) return sendError(reply, 404, 'not_found', NOT_FOUND_MESSAGE);
 
     const client = await deps.pool.connect();
@@ -386,7 +478,7 @@ export function registerAdminRoutes(app: FastifyInstance, deps: AdminApiDeps): v
       ]);
       if (known.rows.length !== rules.length) {
         await client.query('ROLLBACK');
-        return sendError(reply, 400, 'bad_folder', 'Folder tidak dijumpai.');
+        return sendError(reply, 400, 'bad_folder', 'Folder not found.');
       }
       await client.query('DELETE FROM album_folder WHERE album_id = $1', [id]);
       if (rules.length > 0) {
@@ -412,7 +504,7 @@ export function registerAdminRoutes(app: FastifyInstance, deps: AdminApiDeps): v
     const session = await guard(request, reply);
     if (!session) return reply;
     const id = parseBigIntId((request.params as { id: string }).id);
-    if (!id) return sendError(reply, 400, 'bad_id', 'ID tidak sah.');
+    if (!id) return sendError(reply, 400, 'bad_id', 'Invalid id.');
     if (!(await findAlbumById(deps.pool, id))) return sendError(reply, 404, 'not_found', NOT_FOUND_MESSAGE);
     const { rows } = await deps.pool.query<{ total: number; ready: number; failed: number }>(
       `SELECT count(*)::int AS total,
@@ -431,10 +523,10 @@ export function registerAdminRoutes(app: FastifyInstance, deps: AdminApiDeps): v
     const session = await guard(request, reply);
     if (!session) return reply;
     const id = parseBigIntId((request.params as { id: string }).id);
-    if (!id) return sendError(reply, 400, 'bad_id', 'ID tidak sah.');
+    if (!id) return sendError(reply, 400, 'bad_id', 'Invalid id.');
     if (!(await findAlbumById(deps.pool, id))) return sendError(reply, 404, 'not_found', NOT_FOUND_MESSAGE);
     if (!deps.enqueueUrgentThumbs) {
-      return sendError(reply, 503, 'queue_unavailable', 'Barisan kerja tidak tersedia dalam proses ini.');
+      return sendError(reply, 503, 'queue_unavailable', 'The job queue is not available in this process.');
     }
     const { rows } = await deps.pool.query<{ id: string }>(
       `UPDATE asset SET thumb_attempts = 0, thumb_queued_at = now()
@@ -469,7 +561,7 @@ export function registerAdminRoutes(app: FastifyInstance, deps: AdminApiDeps): v
     const session = await guard(request, reply);
     if (!session) return reply;
     const rules = parseRules(bodyRecord(request.body)?.['rules']);
-    if (!rules) return sendError(reply, 400, 'bad_rules', 'Senarai folder tidak sah.');
+    if (!rules) return sendError(reply, 400, 'bad_rules', 'Invalid folder list.');
     const stats = await scopeStats(deps.pool, 'SELECT fid FROM folder_scope($1::bigint[], $2::boolean[], $3::boolean[])', [
       rules.map((rule) => rule.folderId),
       rules.map((rule) => rule.included),
@@ -482,25 +574,25 @@ export function registerAdminRoutes(app: FastifyInstance, deps: AdminApiDeps): v
     const session = await guard(request, reply);
     if (!session) return reply;
     const id = parseBigIntId((request.params as { id: string }).id);
-    if (!id) return sendError(reply, 400, 'bad_id', 'ID tidak sah.');
+    if (!id) return sendError(reply, 400, 'bad_id', 'Invalid id.');
     const body = bodyRecord(request.body);
-    if (!body) return sendError(reply, 400, 'bad_request', 'Permintaan tidak sah.');
+    if (!body) return sendError(reply, 400, 'bad_request', 'Invalid request.');
     const folderIdRaw = body['folderId'] ?? body['folder_id'];
     const folderId = typeof folderIdRaw === 'string' ? parseBigIntId(folderIdRaw) : null;
-    if (!folderId) return sendError(reply, 400, 'bad_id', 'ID folder tidak sah.');
+    if (!folderId) return sendError(reply, 400, 'bad_id', 'Invalid folder id.');
     const recursive = body['recursive'];
     if (recursive !== undefined && typeof recursive !== 'boolean') {
-      return sendError(reply, 400, 'bad_request', 'recursive mesti boolean.');
+      return sendError(reply, 400, 'bad_request', 'recursive must be a boolean.');
     }
     const included = body['included'];
     if (included !== undefined && typeof included !== 'boolean') {
-      return sendError(reply, 400, 'bad_request', 'included mesti boolean.');
+      return sendError(reply, 400, 'bad_request', 'included must be a boolean.');
     }
     if (!(await findAlbumById(deps.pool, id))) return sendError(reply, 404, 'not_found', NOT_FOUND_MESSAGE);
     const folder = await deps.pool.query<{ id: string; path: string }>('SELECT id, path FROM folder WHERE id = $1', [
       folderId,
     ]);
-    if (!folder.rows[0]) return sendError(reply, 400, 'bad_folder', 'Folder tidak dijumpai.');
+    if (!folder.rows[0]) return sendError(reply, 400, 'bad_folder', 'Folder not found.');
 
     const { rows } = await deps.pool.query<{ folder_id: string; path: string; recursive: boolean; included: boolean }>(
       `INSERT INTO album_folder (album_id, folder_id, recursive, included) VALUES ($1, $2, $3, $4)
@@ -517,7 +609,7 @@ export function registerAdminRoutes(app: FastifyInstance, deps: AdminApiDeps): v
     if (!session) return reply;
     const id = parseBigIntId((request.params as { id: string }).id);
     const folderId = parseBigIntId((request.params as { folderId: string }).folderId);
-    if (!id || !folderId) return sendError(reply, 400, 'bad_id', 'ID tidak sah.');
+    if (!id || !folderId) return sendError(reply, 400, 'bad_id', 'Invalid id.');
     const result = await deps.pool.query('DELETE FROM album_folder WHERE album_id = $1 AND folder_id = $2', [id, folderId]);
     if (result.rowCount === 0) return sendError(reply, 404, 'not_found', NOT_FOUND_MESSAGE);
     return reply.code(204).send();
@@ -538,7 +630,7 @@ export function registerAdminRoutes(app: FastifyInstance, deps: AdminApiDeps): v
       }
     } else {
       const parentId = typeof parentRaw === 'string' ? parseBigIntId(parentRaw) : null;
-      if (!parentId) return sendError(reply, 400, 'bad_id', 'ID folder tidak sah.');
+      if (!parentId) return sendError(reply, 400, 'bad_id', 'Invalid folder id.');
       const found = await deps.pool.query<FolderNodeRow>(folderNodeSql('f.id = $1'), [parentId]);
       parent = found.rows[0] ?? null;
       if (!parent) return sendError(reply, 404, 'not_found', NOT_FOUND_MESSAGE);
@@ -563,7 +655,7 @@ export function registerAdminRoutes(app: FastifyInstance, deps: AdminApiDeps): v
     const query = (request.query ?? {}) as Record<string, unknown>;
     const mode = typeof query['mode'] === 'string' ? query['mode'] : 'date';
     if (mode !== 'date' && mode !== 'folder') {
-      return sendError(reply, 400, 'bad_mode', 'mode mesti date atau folder.');
+      return sendError(reply, 400, 'bad_mode', 'mode must be date or folder.');
     }
     const albumSlug = typeof query['album'] === 'string' && query['album'] !== '' ? query['album'] : null;
     let folderIds: string[] | null = null;
@@ -613,10 +705,10 @@ export function registerAdminRoutes(app: FastifyInstance, deps: AdminApiDeps): v
     const session = await guard(request, reply);
     if (!session) return reply;
     if (!deps.triggerScan) {
-      return sendError(reply, 503, 'scan_unavailable', 'Pengimbas tidak tersedia dalam proses ini.');
+      return sendError(reply, 503, 'scan_unavailable', 'The scanner is not available in this process.');
     }
     const started = await deps.triggerScan();
-    if (!started) return sendError(reply, 409, 'scan_running', 'Imbasan sedang berjalan.');
+    if (!started) return sendError(reply, 409, 'scan_running', 'A scan is already running.');
     return reply.code(202).send({ started: true });
   });
 }

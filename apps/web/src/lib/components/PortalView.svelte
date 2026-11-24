@@ -15,7 +15,7 @@
   let menuOpen = $state(false);
   let sharing = $state<AlbumCard | null>(null);
 
-  const menu = [{ label: 'Pergi ke JohorStudio.com', icon: 'globe' as const, href: 'https://johorstudio.com' }];
+  const menu = [{ label: 'Go to JohorStudio.com', icon: 'globe' as const, href: 'https://johorstudio.com' }];
 
   function openAlbum(album: AlbumCard) {
     markOpenedFromClient(album.slug, data.client.slug);
@@ -49,7 +49,7 @@
         <button
           type="button"
           class="icon"
-          aria-label="Lagi"
+          aria-label="More"
           aria-expanded={menuOpen}
           onclick={() => (menuOpen = !menuOpen)}
         >
@@ -62,9 +62,8 @@
 
   <main class="main">
     <div class="intro">
-      <span class="eyebrow">GALERI KLIEN</span>
       <h1>{data.client.name}</h1>
-      <span class="meta">{formatCount(data.albumCount)} album · {formatCount(data.assetCount)} gambar</span>
+      <span class="meta">{formatCount(data.albumCount)} {data.albumCount === 1 ? 'album' : 'albums'} · {formatCount(data.assetCount)} photos</span>
     </div>
 
     <div class="grid">
@@ -74,7 +73,7 @@
           <a
             class="collage"
             href={`${base}/${album.slug}`}
-            aria-label={`Buka album ${album.title}`}
+            aria-label={`Open album ${album.title}`}
             onclick={(event) => {
               event.preventDefault();
               openAlbum(album);
@@ -88,7 +87,7 @@
               {/each}
             </span>
           </a>
-          <button type="button" class="share" aria-label={`Kongsi album ${album.title}`} onclick={() => shareAlbum(album)}>
+          <button type="button" class="share" aria-label={`Share album ${album.title}`} onclick={() => shareAlbum(album)}>
             <Icon name="share" size={20} />
           </button>
           <div class="card-text">
@@ -99,14 +98,14 @@
                 openAlbum(album);
               }}>{album.title}</a
             >
-            <span class="album-meta">{#if album.takenAt}<span class="date">{formatShortDate(album.takenAt)} · </span>{/if}{formatCount(album.assetCount)} gambar{#if album.cameras.length > 1} · {album.cameras.length} kamera{/if}</span>
+            <span class="album-meta">{#if album.takenAt}<span class="date">{`${formatShortDate(album.takenAt)} · `}</span>{/if}{formatCount(album.assetCount)} photos</span>
           </div>
         </div>
       {/each}
     </div>
   </main>
 
-  <footer>Gambar oleh <a href="https://johorstudio.com">JohorStudio.com</a></footer>
+  <footer>Photos by <a href="https://johorstudio.com">JohorStudio.com</a></footer>
 
   {#if sharing}
     <ShareSheet album={sharing} onclose={() => (sharing = null)} />
@@ -176,12 +175,6 @@
     gap: 6px;
   }
 
-  .eyebrow {
-    font-size: 13px;
-    font-weight: 600;
-    letter-spacing: 0.08em;
-    color: var(--muted);
-  }
 
   h1 {
     font-size: 48px;
@@ -286,9 +279,6 @@
       padding: 8px 6px 8px 14px;
     }
 
-    .eyebrow {
-      font-size: 12px;
-    }
 
     .logo-desktop {
       display: none;

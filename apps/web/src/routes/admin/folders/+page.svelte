@@ -25,8 +25,8 @@
     try {
       view = await api.getAdminFolder(id);
     } catch (cause) {
-      console.error('folder gagal', cause);
-      error = 'Folder tak dapat dimuatkan.';
+      console.error('folder failed', cause);
+      error = 'Could not load this folder.';
     }
   }
 
@@ -37,22 +37,20 @@
   const totalAssets = $derived(
     (view?.folders ?? []).reduce((sum, folder) => sum + folder.assetCount, 0) + (view?.assetCount ?? 0)
   );
-  const albumHref = $derived(
-    `${base}/admin/albums/new?folder=${encodeURIComponent(view?.id ?? '')}&path=${encodeURIComponent(view?.path ?? '')}`
-  );
+  const albumHref = $derived(`${base}/admin/clients`);
 </script>
 
 <svelte:head>
-  <title>Timeline folder · JohorStudio admin</title>
+  <title>Folder timeline · JohorStudio admin</title>
 </svelte:head>
 
 <header class="head">
   <h1>Timeline</h1>
-  <div role="group" aria-label="Mod paparan" class="segmented">
-    <a href={`${base}/admin`}>Tarikh</a>
+  <div role="group" aria-label="View mode" class="segmented">
+    <a href={`${base}/admin`}>Date</a>
     <a href={`${base}/admin/folders`} class="on" aria-current="page">Folder</a>
   </div>
-  <nav aria-label="Laluan folder" class="crumbs">
+  <nav aria-label="Folder path" class="crumbs">
     <a href={`${base}/admin/folders`}>studio</a>
     {#each view?.breadcrumb ?? [] as crumb, index (crumb.id)}
       {#if index > 0 || crumb.path !== '.'}
@@ -72,7 +70,7 @@
 {/if}
 
 <div class="body">
-  <aside aria-label="Pokok folder" class="tree">
+  <aside aria-label="Folder tree" class="tree">
     <span class="root">/mnt/a/studio</span>
     {#each view?.tree ?? [] as node (node.id)}
       <a
@@ -89,8 +87,8 @@
 
   <div class="content">
     <div class="tools">
-      <span>{formatCount(view?.folderCount)} folder · {formatCount(totalAssets)} gambar</span>
-      <a class="create" href={albumHref}>+ Buat album dari folder dipilih</a>
+      <span>{formatCount(view?.folderCount)} folders · {formatCount(totalAssets)} photos</span>
+      <a class="create" href={albumHref}>+ Make an album (pick a client)</a>
     </div>
 
     {#if view}
@@ -114,16 +112,16 @@
             </div>
             <div class="card-text">
               <span class="name">{folder.name}</span>
-              <span class="meta">{formatCount(folder.assetCount)} gambar · {formatDayMonth(folder.lastTakenAt)}</span>
+              <span class="meta">{formatCount(folder.assetCount)} photos · {formatDayMonth(folder.lastTakenAt)}</span>
             </div>
           </a>
         {/each}
       </div>
 
-      <h2 class="loose-head">Gambar terus dalam {view.breadcrumb.at(-1)?.name ?? 'studio'}</h2>
-      <JustifiedGrid assets={view.loose} targetRowHeight={140} gap={4} theme="light" ariaLabel="Gambar dalam folder" onopen={(id) => (viewerId = id)} />
+      <h2 class="loose-head">Photos directly in {view.breadcrumb.at(-1)?.name ?? 'studio'}</h2>
+      <JustifiedGrid assets={view.loose} targetRowHeight={140} gap={4} theme="light" ariaLabel="Photos in folder" onopen={(id) => (viewerId = id)} />
     {:else if !error}
-      <p class="loading" aria-busy="true">Memuatkan folder…</p>
+      <p class="loading" aria-busy="true">Loading folder…</p>
     {/if}
   </div>
 </div>

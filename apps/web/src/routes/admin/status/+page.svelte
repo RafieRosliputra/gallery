@@ -16,8 +16,8 @@
     try {
       status = await api.getAdminStatus();
     } catch (cause) {
-      console.error('status gagal', cause);
-      error = 'Status sistem tak dapat dimuatkan.';
+      console.error('status failed', cause);
+      error = 'Could not load system status.';
     }
   });
 
@@ -27,15 +27,15 @@
     return [
       {
         at: status.lastScanAt ? formatLocalClock(status.lastScanAt) : '—',
-        message: 'Imbas terakhir selesai'
+        message: 'Last scan finished'
       },
       {
         at: '—',
-        message: `${formatCount(status.pendingThumbs)} thumbnail dalam giliran`
+        message: `${formatCount(status.pendingThumbs)} thumbnails queued`
       },
       {
         at: '—',
-        message: `${formatCount(status.errors24h)} ralat dalam 24 jam`
+        message: `${formatCount(status.errors24h)} errors in 24 hours`
       }
     ];
   });
@@ -59,73 +59,73 @@
     const ram = status.ram;
     return [
       {
-        title: 'Pengimbas folder',
+        title: 'Folder scanner',
         big: formatCount(status.assets),
         pct: 100,
-        note: 'Watch fail baru aktif · imbas penuh malam 03:00',
+        note: 'Scans every 10 minutes',
         tone: 'ok',
         tag: 'OK'
       },
       {
-        title: 'Jana thumbnail',
-        big: `${formatCount(status.pendingThumbs)} lagi`,
+        title: 'Thumbnails',
+        big: `${formatCount(status.pendingThumbs)} left`,
         pct: thumbPct,
-        note: 'Grid 300px + preview 1600px WebP · ~0.4 s/gambar',
+        note: 'Grid 300px + preview 1600px WebP',
         tone: 'run',
-        tag: 'Berjalan'
+        tag: 'Running'
       },
       status.r2Enabled
         ? {
-            title: 'Push ke R2',
+            title: 'Push to R2',
             big: formatCount(r2done),
             pct: r2Pct,
-            note: 'cdn.johorstudio.com · 0 gagal',
+            note: 'Served from Cloudflare R2',
             tone: 'ok' as const,
             tag: 'OK'
           }
         : {
-            title: 'Push ke R2',
+            title: 'Push to R2',
             big: '—',
             pct: 0,
-            note: 'R2 dimatikan (R2_MODE=off)',
+            note: 'R2 is off (R2_MODE=off)',
             tone: 'off' as const,
-            tag: 'Tutup'
+            tag: 'Off'
           },
       {
         title: 'Hot cache SSD',
         big: hot ? `${Math.round(hot.usedBytes / 1024 ** 3)} / ${Math.round(hot.capBytes / 1024 ** 3)} GB` : '—',
         pct: hot && hot.capBytes > 0 ? Math.round((hot.usedBytes / hot.capBytes) * 100) : 0,
-        note: 'Simpan 30 hari · 1,940 fail tamat minggu ni',
+        note: 'Kept 30 days',
         tone: 'ok',
         tag: 'OK'
       },
       {
         title: 'RAM tnas',
-        big: ram ? `${formatBytes(ram.freeBytes, 1)} kosong` : '—',
+        big: ram ? `${formatBytes(ram.freeBytes, 1)} free` : '—',
         pct: ram && ram.totalBytes > 0 ? Math.round(((ram.totalBytes - ram.freeBytes) / ram.totalBytes) * 100) : 0,
-        note: 'Postgres + app + thumbnail berkongsi 11 GB',
+        note: 'Postgres + app + thumbnails share the RAM',
         tone: 'warn',
-        tag: 'Perhati'
+        tag: 'Watch'
       },
       {
-        title: 'Proses muka',
-        big: status.faceSearch ? 'Aktif' : 'Belum aktif',
+        title: 'Face grouping',
+        big: status.faceSearch ? 'Active' : 'Not active yet',
         pct: 0,
-        note: 'CPU tnas · malam sahaja · album klien sahaja',
+        note: 'tnas CPU · nights only · client albums only',
         tone: 'off',
-        tag: 'Fasa 4'
+        tag: 'Phase 4'
       }
     ];
   });
 </script>
 
 <svelte:head>
-  <title>Status sistem · JohorStudio admin</title>
+  <title>System status · JohorStudio admin</title>
 </svelte:head>
 
 <header class="head">
-  <h1>Status sistem</h1>
-  <span>tnas · dikemas kini {status?.updatedAt ? formatLocalClock(status.updatedAt) : '—'}</span>
+  <h1>System status</h1>
+  <span>tnas · updated {status?.updatedAt ? formatLocalClock(status.updatedAt) : '—'}</span>
 </header>
 
 {#if error}<p class="error" role="alert">{error}</p>{/if}
@@ -145,26 +145,26 @@
 </div>
 
 <section class="log">
-  <h2>Folder dipindah</h2>
+  <h2>Moved folders</h2>
   {#each moves as move, index (index)}
     <div class="log-row move">
       <span class="time">{formatShortDate(move.movedAt)} {formatLocalClock(move.movedAt)}</span>
       <span>
         <strong>{move.from}</strong> → <strong>{move.to}</strong>
-        · {formatCount(move.assets)} gambar{#if move.albums > 0} · {move.albums} album ikut pindah{/if}
+        · {formatCount(move.assets)} photos{#if move.albums > 0} · {move.albums} album rules followed{/if}
       </span>
     </div>
   {:else}
-    <p class="note">Belum ada folder dipindah. Bila folder dipindah (contoh SSD → HDD), ia dikesan di sini dan album ikut ke tempat baru.</p>
+    <p class="note">No moved folders yet. When a folder moves (e.g. SSD → HDD) it shows up here and its albums follow it.</p>
   {/each}
 </section>
 
 <section class="log">
-  <h2>Log terkini</h2>
+  <h2>Recent log</h2>
   {#each logEntries as entry, index (index)}
     <div class="log-row"><span class="time">{entry.at}</span><span>{entry.message}</span></div>
   {:else}
-    <p class="note">Tiada log.</p>
+    <p class="note">No log entries.</p>
   {/each}
 </section>
 
