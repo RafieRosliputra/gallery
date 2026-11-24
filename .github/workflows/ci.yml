@@ -1,0 +1,77 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: gallery
+          POSTGRES_PASSWORD: gallery
+          POSTGRES_DB: gallery_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U gallery -d gallery_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgres://gallery:gallery@127.0.0.1:5432/gallery_test
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Test (Postgres 16 service)
+        run: npm test
+
+      - name: Build image (linux/amd64)
+        run: docker build --platform linux/amd64 -t gallery:ci .
+
+      - name: HEIC check (inside built image)
+        run: docker run --rm gallery:ci node scripts/heic-check.mjs
+
+      - name: Report image size
+        run: |
+          docker image inspect -f '{{.Size}}' gallery:ci \
+            | awk '{printf "image size: %.1f MiB (%d bytes)\n", $1/1048576, $1}'
+
+      - name: Log in to GHCR
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Push image (main only)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          IMAGE=ghcr.io/rafierosliputra/gallery
+          docker tag gallery:ci "$IMAGE:${GITHUB_SHA}"
+          docker tag gallery:ci "$IMAGE:latest"
+          docker push "$IMAGE:${GITHUB_SHA}"
+          docker push "$IMAGE:latest"
