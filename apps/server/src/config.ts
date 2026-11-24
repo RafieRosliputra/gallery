@@ -1,5 +1,6 @@
 import path from 'node:path';
 import { DEFAULT_SCAN_EXCLUDE, normalizeExcludeNames } from './scan/excludes.js';
+import { registerSourceMounts, type SourceMount } from './scan/paths.js';
 
 export interface R2Config {
   endpoint: string;
@@ -27,6 +28,8 @@ export interface Config {
   logLevel: string;
   /** Read-only photo root. Required by the scanner/worker CLIs, optional for the API-only server. */
   sourceRoot?: string;
+  /** Extra folders shown as top-level folders of SOURCE_ROOT (SOURCE_MOUNTS). */
+  sourceMounts: SourceMount[];
   dataDir: string;
   /** SvelteKit build output served at `/s` (default: apps/web/build). */
   webDir: string;
@@ -171,6 +174,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   }
 
   const sourceRoot = env.SOURCE_ROOT?.trim();
+  const sourceMounts = parseSourceMounts(env.SOURCE_MOUNTS);
+  if (sourceRoot) registerSourceMounts(resolveDir(sourceRoot), sourceMounts);
   const r2 = loadR2Config(env);
   const r2Selection = loadR2Mode(env, r2);
   const originSecret = env.ORIGIN_SECRET?.trim();
@@ -186,6 +191,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     thumbConcurrency: positiveInteger('THUMB_CONCURRENCY', env.THUMB_CONCURRENCY, 1),
     scanIntervalMin,
     scanExclude: parseScanExclude(env.SCAN_EXCLUDE),
+    sourceMounts,
     trustProxy: booleanFlag('TRUST_PROXY', env.TRUST_PROXY, true),
     thumbBase: parseThumbBase(env.THUMB_BASE),
     timezone: parseTimezone(env.TIMEZONE),
@@ -195,6 +201,25 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     ...(r2Selection.workerUpload ? { workerUpload: r2Selection.workerUpload } : {}),
     ...(originSecret ? { originSecret } : {}),
   };
+}
+
+const MOUNT_NAME = /^[A-Za-z0-9][A-Za-z0-9._ -]{0,79}$/;
+
+/** `name=/abs/path[,name2=/abs/path2]`; names become top-level folder names. */
+export function parseSourceMounts(raw: string | undefined): SourceMount[] {
+  if (!raw || raw.trim() === '') return [];
+  const mounts: SourceMount[] = [];
+  for (const part of raw.split(',')) {
+    const index = part.indexOf('=');
+    const name = part.slice(0, index).trim();
+    const root = part.slice(index + 1).trim();
+    if (index < 1 || !MOUNT_NAME.test(name) || name.endsWith('.') || !path.isAbsolute(root)) {
+      throw new Error(`SOURCE_MOUNTS entries must be name=/absolute/path, got ${JSON.stringify(part)}`);
+    }
+    if (mounts.some((mount) => mount.name === name)) throw new Error(`SOURCE_MOUNTS repeats ${name}`);
+    mounts.push({ name, root: path.resolve(root) });
+  }
+  return mounts;
 }
 
 export { DEFAULT_SCAN_EXCLUDE };

@@ -11,6 +11,31 @@ function isInside(root: string, candidate: string): boolean {
 }
 
 /**
+ * Extra source folders mounted as virtual top-level folders of SOURCE_ROOT
+ * (SOURCE_MOUNTS, e.g. `client-1month=/data/mounts/client-1month`). A DB path
+ * `client-1month/x/y.jpg` lives at `<mount root>/x/y.jpg`. A real directory of
+ * the same name directly under SOURCE_ROOT is shadowed by the mount.
+ */
+export interface SourceMount {
+  name: string;
+  root: string;
+}
+
+let registered: { root: string; mounts: SourceMount[] } | null = null;
+
+export function registerSourceMounts(root: string, mounts: readonly SourceMount[]): void {
+  registered = {
+    root: path.resolve(root),
+    mounts: mounts.map((mount) => ({ name: mount.name, root: path.resolve(mount.root) })),
+  };
+}
+
+/** Mounts that belong to `root` (none unless `root` is the registered SOURCE_ROOT). */
+export function sourceMountsFor(root: string): SourceMount[] {
+  return registered && path.resolve(root) === registered.root ? registered.mounts : [];
+}
+
+/**
  * Resolve a DB/relative path inside a root. Rejects absolute paths, `..` escapes
  * and NUL bytes (AGENTS §5 path rule, SPEC § Security).
  */
@@ -24,6 +49,12 @@ export function resolveInside(root: string, relativePath: string): string {
   if (relative === '' || relative.startsWith('..') || path.isAbsolute(relative)) {
     throw new Error(`path escapes root: ${JSON.stringify(relativePath)}`);
   }
+  const [first, ...rest] = relative.split(path.sep);
+  const mount = sourceMountsFor(resolvedRoot).find((candidate) => candidate.name === first);
+  if (mount) {
+    if (rest.length === 0) return mount.root;
+    return resolveInside(mount.root, rest.join(path.sep));
+  }
   return resolved;
 }
 
@@ -33,6 +64,11 @@ export function assertOutsideSource(sourceRoot: string, candidate: string): void
   const resolved = path.resolve(candidate);
   if (resolved === root || isInside(root, resolved)) {
     throw new Error(`refusing to write under SOURCE_ROOT: ${resolved}`);
+  }
+  for (const mount of sourceMountsFor(root)) {
+    if (resolved === mount.root || isInside(mount.root, resolved)) {
+      throw new Error(`refusing to write under source mount ${mount.name}: ${resolved}`);
+    }
   }
 }
 
