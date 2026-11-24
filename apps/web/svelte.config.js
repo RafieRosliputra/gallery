@@ -29,6 +29,9 @@ const config = {
         'default-src': ['self'],
         'script-src': ['self'],
         'style-src': ['self'],
+        // Svelte `style:` directives (row heights, tile widths, thumbhash colours) are
+        // style ATTRIBUTES; allowing those cannot run script. <style> elements stay 'self'.
+        'style-src-attr': ['unsafe-inline'],
         'font-src': ['self'],
         'img-src': ['self', 'data:', 'blob:', 'https://cdn.johorstudio.com'],
         'connect-src': ['self'],

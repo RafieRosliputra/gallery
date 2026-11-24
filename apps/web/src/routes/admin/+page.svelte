@@ -5,6 +5,7 @@
   import { formatCount, formatLocalClock } from '$lib/format';
   import Icon from '$lib/components/Icon.svelte';
   import JustifiedGrid from '$lib/components/JustifiedGrid.svelte';
+  import AdminViewer from '$lib/components/AdminViewer.svelte';
 
   let status = $state<AdminStatusView | null>(null);
   let bucketData = $state<AdminBucketsResponse | null>(null);
@@ -12,6 +13,8 @@
   let query = $state('');
   let notice = $state('');
   let busy = $state(false);
+  let viewerId = $state<string | null>(null);
+
 
   const visible = $derived(
     (bucketData?.buckets ?? []).filter((bucket) => {
@@ -20,6 +23,9 @@
       return `${bucket.label ?? ''} ${bucket.sub ?? ''} ${bucket.key}`.toLowerCase().includes(needle);
     })
   );
+
+  // One flat list in screen order so ← → walks across days.
+  const loadedItems = $derived(visible.flatMap((bucket) => days[bucket.key] ?? []));
 
   const activeMonth = $derived((bucketData?.buckets[0]?.key ?? '').slice(0, 7));
 
@@ -116,7 +122,7 @@
             gap={4}
             theme="light"
             ariaLabel={bucket.label ?? bucket.key}
-           
+            onopen={(id) => (viewerId = id)}
           />
         {:else}
           <p class="loading-row" aria-busy="true">Memuatkan…</p>
@@ -342,3 +348,7 @@
     }
   }
 </style>
+
+{#if viewerId}
+  <AdminViewer items={loadedItems} id={viewerId} onclose={() => (viewerId = null)} onchange={(id) => (viewerId = id)} />
+{/if}

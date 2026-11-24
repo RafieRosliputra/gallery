@@ -14,6 +14,7 @@
   let newSlug = $state('');
   let createError = $state('');
   let creating = $state(false);
+  let loaded = $state(false);
 
   onMount(async () => {
     try {
@@ -21,6 +22,8 @@
     } catch (cause) {
       console.error('klien gagal', cause);
       error = 'Senarai klien tak dapat dimuatkan.';
+    } finally {
+      loaded = true;
     }
   });
 
@@ -150,7 +153,8 @@
     </div>
   </section>
 {:else}
-  {#if !error}<p class="loading" aria-busy="true">Memuatkan klien…</p>{/if}
+  {#if !loaded}<p class="loading" aria-busy="true">Memuatkan klien…</p>
+  {:else if !error}<p class="loading">Belum ada klien. Tekan "+ Klien baru" untuk mula.</p>{/if}
 {/each}
 
 <style>
