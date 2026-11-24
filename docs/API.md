@@ -1,7 +1,8 @@
 # API — phase 1c
 
 All routes live under `/s`. JSON bodies; errors are `{ error, message }` with a
-Bahasa Melayu `message`. Bigint ids are JSON strings.
+Bahasa Melayu `message`. Bigint ids are JSON strings. This file is the contract
+for the web client (phase 1d is reconciled to it, not the other way round).
 
 ## Auth (cookie session)
 
@@ -22,31 +23,40 @@ Every `/s/api/admin/*` route requires a live session. Sessions are rows in
 
 - `GET /s/api/resolve/:slug` → `{kind:"client",client}` or
   `{kind:"album",album,client}`; `404` if unknown.
-- `GET /s/api/client/:slug` → `{client,albums:[{…album,count,cover}]}`.
-  Cards only, no asset list.
-- `GET /s/api/album/:slug?cam=` → `{album,client,cameras,buckets,total,thumbBase}`.
-  `buckets` are `{key:"YYYY-MM",count}` in `TIMEZONE`; `cam` filters totals and
-  buckets (`Cam 1`, `Cam 2`, …). No asset list.
-- `GET /s/api/bucket/:key?album=&cam=&cursor=&limit=` → `{assets,nextCursor}`.
-  `key` is `YYYY-MM`. Keyset only, `limit` default 100, max 500.
-  Public requests must include `album`; `f:<folderId>` keys are admin-only.
+- `GET /s/api/client/:slug` → client portal; cards only, no asset list.
+- `GET /s/api/album/:slug?cam=` → album meta; no asset list.
+- `GET /s/api/bucket/:key?album=&cam=&cursor=&limit=` → one page of assets.
 - `GET /s/api/o/:assetId?album=` → original bytes (`inline`, `private, no-store`).
-  Allowed for an admin session, or when the asset's folder belongs to the album
-  in `album`. A link scoped to album A cannot fetch album B's original (`403`).
-  Hot cache wins when `hot_until > now()` and `DATA_DIR/hot/<derivKey>` exists.
-- `POST /s/api/zip` `{albumSlug,ids?,cam?}` → streamed `application/zip`, no temp
-  file, `allow_download=false` → `403`. Ids are optional and are intersected with
-  the album scope. Entry names are the original basenames, de-duplicated.
-  Whole-album ZIP is allowed; JSON endpoints never return a whole album.
-- `GET /s/t/:derivKey/:size.webp` (`size` 300|1600) → local derivative fallback,
-  `Cache-Control: public, max-age=31536000, immutable`. The Worker tries R2 first.
+- `POST /s/api/zip` `{albumSlug,ids?,cam?}` → streamed ZIP.
+- `GET /s/t/:derivKey/:size.webp` (`size` 300|1600) → derivative fallback.
 
-Asset item:
+### Shared objects
+
+`client`:
+
+```json
+{ "id": "1", "name": "Klien Demo", "slug": "klien-demo" }
+```
+
+`album` (meta, no counts or cover):
+
+```json
+{
+  "id": "10",
+  "clientId": "1",
+  "title": "Album A",
+  "slug": "album-a",
+  "allowDownload": true
+}
+```
+
+`asset` (every field the API emits):
 
 ```json
 {
   "id": "123",
-  "w": 800, "h": 1200,
+  "w": 800,
+  "h": 1200,
   "takenAt": "2024-05-01T02:00:00.000Z",
   "camera": "Cam 1",
   "thumbhash": "base64…",
@@ -57,7 +67,129 @@ Asset item:
 }
 ```
 
-`thumb`/`preview` use `THUMB_BASE` (default `/s/t`; an R2 CDN URL later).
+- `w`, `h`, `takenAt`, `camera`, `thumbhash` are nullable (`null` when the file
+  has no such metadata). `mime` is always `image/jpeg` or `image/webp`.
+- `thumb`/`preview` use `THUMB_BASE` (default `/s/t`; an R2 CDN URL later).
+  Both stay viewable on every public link.
+- `original` is present only on album-scoped public pages (`bucket`, album card
+  cover). It returns `403 download_disabled` when the album has
+  `allowDownload:false`; an admin session is always allowed.
+
+`bucket` (date buckets; `label` appears only for admin `mode=folder` rows):
+
+```json
+{ "key": "2024-05", "count": 2 }
+```
+
+### Client portal — `GET /s/api/client/:slug`
+
+```json
+{
+  "client": { "id": "1", "name": "Klien Demo", "slug": "klien-demo" },
+  "albums": [
+    {
+      "id": "10",
+      "clientId": "1",
+      "title": "Album A",
+      "slug": "album-a",
+      "allowDownload": true,
+      "count": 2,
+      "cover": {
+        "id": "123",
+        "w": 800,
+        "h": 1200,
+        "takenAt": "2024-05-01T02:00:00.000Z",
+        "camera": "Cam 1",
+        "thumbhash": "base64…",
+        "mime": "image/jpeg",
+        "thumb": "/s/t/<derivKey>/300.webp",
+        "preview": "/s/t/<derivKey>/1600.webp",
+        "original": "/s/api/o/123?album=album-a"
+      }
+    }
+  ]
+}
+```
+
+Album card fields: `id`, `clientId`, `title`, `slug`, `allowDownload`, `count`
+(number of live assets in the album's folder scope), `cover` (newest asset, or
+`null` when the album is empty). Cards never carry an asset list.
+
+### Album meta — `GET /s/api/album/:slug?cam=`
+
+```json
+{
+  "album": {
+    "id": "10",
+    "clientId": "1",
+    "title": "Album A",
+    "slug": "album-a",
+    "allowDownload": true
+  },
+  "client": { "id": "1", "name": "Klien Demo", "slug": "klien-demo" },
+  "cameras": ["Cam 1", "Cam 2"],
+  "buckets": [
+    { "key": "2024-05", "count": 2 },
+    { "key": "2024-04", "count": 8 }
+  ],
+  "total": 10,
+  "thumbBase": "/s/t"
+}
+```
+
+- `cameras` lists the distinct cameras in scope, sorted; `cam` filters `buckets`
+  and `total` only (`Cam 1`, `Cam 2`, …; `all`/absent means no filter).
+- `buckets` are `YYYY-MM` in `TIMEZONE`, newest first. `total` is their sum.
+- Album meta never carries an asset list.
+
+### Bucket page — `GET /s/api/bucket/:key?album=&cam=&cursor=&limit=`
+
+```json
+{
+  "assets": [
+    {
+      "id": "123",
+      "w": 800,
+      "h": 1200,
+      "takenAt": "2024-05-01T02:00:00.000Z",
+      "camera": "Cam 1",
+      "thumbhash": "base64…",
+      "mime": "image/jpeg",
+      "thumb": "/s/t/<derivKey>/300.webp",
+      "preview": "/s/t/<derivKey>/1600.webp",
+      "original": "/s/api/o/123?album=album-a"
+    }
+  ],
+  "nextCursor": "MTIz"
+}
+```
+
+- `key` is `YYYY-MM`. Public requests must include `album`; `f:<folderId>` keys
+  are admin-only. `limit` defaults to 100, max 500. Pagination is keyset only;
+  `nextCursor` is `null` on the last page.
+- Asset fields are exactly the `asset` object above (`id`, `w`, `h`, `takenAt`,
+  `camera`, `thumbhash`, `mime`, `thumb`, `preview`, `original`).
+
+### Originals — `GET /s/api/o/:assetId?album=`
+
+Allowed for an admin session, or when the asset's folder belongs to the album in
+`album` **and** that album has `allowDownload:true`. Otherwise:
+
+- no album and no admin session → `401 unauthorized`;
+- asset outside the album scope → `403 forbidden`;
+- album with `allowDownload:false` → `403 download_disabled`.
+
+A link scoped to album A cannot fetch album B's original. Previews under
+`/s/t/...1600.webp` are not gated. Hot cache wins when `hot_until > now()` and
+`DATA_DIR/hot/<derivKey>` exists.
+
+### ZIP — `POST /s/api/zip`
+
+`{albumSlug,ids?,cam?}` → streamed `application/zip`, no temp file;
+`allow_download=false` → `403 download_disabled`. Ids are optional and are
+intersected with the album scope. Entry names are the original basenames,
+de-duplicated. Whole-album ZIP is allowed; JSON endpoints never return a whole
+album.
 
 ## Admin
 
@@ -75,6 +207,54 @@ Asset item:
 - `POST /s/api/admin/rescan` → `202 {started:true}` or `409` when a pass is
   already running. Scans serialize on a Postgres advisory lock across CLI,
   timer and API.
+
+### Album folders
+
+`GET /s/api/admin/albums/:id/folders`:
+
+```json
+{
+  "folders": [
+    { "folder_id": "20", "path": "Klien Demo/Album A", "recursive": true }
+  ]
+}
+```
+
+`POST /s/api/admin/albums/:id/folders` body `{folderId, recursive?}`. `recursive`
+defaults to `true` (migration 004 and the API): a folder includes its whole
+subtree, so `Cam N` subfolders are part of the album. Send `false` to select only
+that one folder. Re-adding the same folder updates `recursive`.
+
+### Folder tree node — `GET /s/api/admin/folders?parent=<id>`
+
+```json
+{
+  "parent": {
+    "id": "2",
+    "path": "Klien Demo",
+    "name": "Klien Demo",
+    "parentId": "1",
+    "assetCount": 0,
+    "hasChildren": true
+  },
+  "folders": [
+    {
+      "id": "20",
+      "path": "Klien Demo/Album A",
+      "name": "Album A",
+      "parentId": "2",
+      "assetCount": 2,
+      "hasChildren": true
+    }
+  ]
+}
+```
+
+Folder node fields: `id`, `path` (POSIX path relative to the source root),
+`name` (basename; the root `.` renders as `/`), `parentId` (`null` for the root),
+`assetCount` (live assets directly in that folder), `hasChildren` (any child
+folder, so the UI knows whether to offer a drill-down). `parent` is `null` only
+when the root folder has not been scanned yet.
 
 Slug rules: `^[a-z0-9-]{3,60}$`, one namespace shared by clients and albums.
 Conflicts return `409 {error:"slug_conflict"}` with a BM message.

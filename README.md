@@ -55,8 +55,9 @@ npm run worker                  # pg-boss worker: 300/1600 WebP + thumbhash, the
   credentials on the NAS). With no `R2_MODE`, a complete `R2_*` set means `s3`,
   otherwise `off`. Disabled uploads are logged once and skipped cleanly.
 - `SCAN_EXCLUDE` (comma list, case-insensitive, any depth) defaults to
-  `immich,@eaDir,#recycle,.Trash-1000,.Recycle.Bin`. Rows already ingested under
-  a newly excluded directory are soft-deleted on the next pass.
+  `immich,@eaDir,#recycle,.Recycle.Bin`. Dot-directories and dot-files are always
+  skipped by the walker. Rows already ingested under a newly excluded directory
+  are soft-deleted on the next pass.
 - Every scan pass (CLI, periodic timer, admin rescan) takes the same Postgres
   advisory lock, so passes never overlap.
 - `GET /s/api/admin/status` requires an admin session and returns

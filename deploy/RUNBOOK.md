@@ -52,7 +52,7 @@ Required values:
 | `R2_*` | only for `R2_MODE=s3`; not needed for `worker` |
 | `TUNNEL_TOKEN` | from step 2 |
 | `SCAN_INTERVAL_MIN` | `10` (0 disables periodic scans) |
-| `SCAN_EXCLUDE` | `immich,@eaDir,#recycle,.Trash-1000,.Recycle.Bin` |
+| `SCAN_EXCLUDE` | `immich,@eaDir,#recycle,.Recycle.Bin` |
 | `TIMEZONE` | `Asia/Kuala_Lumpur` |
 
 Worker secrets (already live; rotate only with Rafi's approval):
@@ -67,6 +67,9 @@ npx wrangler secret put ORIGIN_SECRET
 request that did not come through the Worker (health is exempt).
 
 ## 4. Create the app
+
+> The live app is managed by CLAUDE via `midclt app.update`; the UI path below
+> stays for reference.
 
 - **UI:** Apps → Discover → Custom App → paste `deploy/truenas-compose.yaml`
   and its environment → Install.
