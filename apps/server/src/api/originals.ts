@@ -53,8 +53,10 @@ export function registerOriginalRoutes(app: FastifyInstance, deps: OriginalDeps)
       const folderIds = await albumFolderIds(deps.pool, album.id);
       if (!folderIds.includes(asset.folder_id)) return sendError(reply, 403, 'forbidden', SCOPE_DENIED);
       // A public album link is not a download link when allow_download is off.
-      // Derivatives under /s/t stay public; only the original is gated.
-      if (!album.allowDownload) return sendError(reply, 403, 'download_disabled', DOWNLOAD_DENIED);
+      // Derivatives under /s/t stay public; only the original is gated. The
+      // viewer's zoom (`view=1`) may still show the full-resolution file inline.
+      const view = (request.query as Record<string, unknown> | undefined)?.['view'] === '1';
+      if (!album.allowDownload && !view) return sendError(reply, 403, 'download_disabled', DOWNLOAD_DENIED);
     }
 
     let file: string | null = null;

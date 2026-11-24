@@ -105,6 +105,8 @@ export interface AdminFolderNode {
   name: string;
   parentId: string | null;
   assetCount: number;
+  /** Assets in the folder and all of its subfolders. */
+  totalCount: number;
   hasChildren: boolean;
 }
 
@@ -117,6 +119,38 @@ export interface AdminAlbumFolder {
   folderId: string;
   path: string;
   recursive: boolean;
+  /** false = this subtree is carved out of an included parent. */
+  included: boolean;
+}
+
+/** One include/exclude rule sent by the album editor. */
+export interface AlbumRule {
+  folderId: string;
+  included: boolean;
+}
+
+export interface ScopeStats {
+  assetCount: number;
+  folderCount: number;
+}
+
+export interface AlbumFolderCard {
+  id: string;
+  name: string;
+  /** Assets in this folder and its in-album subfolders. */
+  count: number;
+  cover: AssetItem | null;
+}
+
+/** Response body of `GET /s/api/album/:slug/folders?folder=`. */
+export interface AlbumFolderResponse {
+  /** Folder whose own photos are listed below the cards; null at a multi-root album top. */
+  folderId: string | null;
+  /** Breadcrumb from the album top to the current folder (album top itself excluded). */
+  trail: { id: string; name: string }[];
+  folders: AlbumFolderCard[];
+  /** Photos directly inside `folderId`. */
+  assetCount: number;
 }
 
 /** Error body used by every JSON endpoint. */

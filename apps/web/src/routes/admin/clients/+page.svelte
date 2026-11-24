@@ -4,7 +4,7 @@
   import type { AdminClient } from '$lib/api/models';
   import { api } from '$lib/api/client';
   import { copyText } from '$lib/clipboard';
-  import { formatCount } from '$lib/format';
+  import { formatCount, formatShortDate } from '$lib/format';
 
   let clients = $state<AdminClient[]>([]);
   let error = $state('');
@@ -82,7 +82,7 @@
 <header class="head">
   <div class="titles">
     <h1>Klien</h1>
-    <span>1 klien = 1 link portal. Setiap album ada link sendiri untuk klien share kepada customer dia.</span>
+    <span>1 klien = 1 link portal berisi semua event yang dia hire. Tekan + Album untuk tambah event baru. Setiap album ada link sendiri untuk dikongsi.</span>
   </div>
   <button type="button" class="new" aria-expanded={adding} onclick={() => (adding = !adding)}>+ Klien baru</button>
 </header>
@@ -124,7 +124,7 @@
       <table>
         <thead>
           <tr>
-            <th>Album</th>
+            <th>Event (album)</th>
             <th>Link album (untuk customer)</th>
             <th>Gambar</th>
             <th>Kamera</th>
@@ -135,7 +135,7 @@
         <tbody>
           {#each client.albums as album (album.id)}
             <tr>
-              <td class="album-title">{album.title}</td>
+              <td class="album-title">{album.title}{#if album.takenAt}<span class="event-date">{formatShortDate(album.takenAt)}</span>{/if}</td>
               <td class="nowrap">/s/<em>{album.slug}</em></td>
               <td>{formatCount(album.assetCount)}</td>
               <td class="muted">{album.cameras.length > 1 ? album.cameras.join(', ') : album.cameras.length === 1 ? '1 kamera' : '—'}</td>
@@ -158,6 +158,13 @@
 {/each}
 
 <style>
+  .event-date {
+    display: block;
+    font-size: 12px;
+    font-weight: 400;
+    color: var(--steel);
+  }
+
   .head {
     display: flex;
     flex-wrap: wrap;

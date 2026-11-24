@@ -80,6 +80,7 @@
       onstep={step}
       onclose={close}
       ontap={toggleChrome}
+      originalUrl={(asset) => api.originalUrl(asset.id)}
       label={`Gambar ${index + 1} daripada ${items.length}`}
     />
     <div class="bar" class:hidden={!chrome}>

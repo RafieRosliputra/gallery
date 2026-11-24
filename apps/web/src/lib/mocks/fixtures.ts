@@ -242,23 +242,24 @@ const ROOT: AdminFolderNode = {
   name: '/',
   parentId: null,
   assetCount: 0,
+  totalCount: 0,
   hasChildren: true
 };
 
 const FOLDER_NODES: AdminFolderNode[] = [
-  { id: '2', path: 'BTS', name: 'BTS', parentId: '1', assetCount: 0, hasChildren: true },
-  { id: '12', path: 'BTS/Aina Hafiz BTS', name: 'Aina Hafiz BTS', parentId: '2', assetCount: 158, hasChildren: false },
-  { id: '3', path: 'CLIENT', name: 'CLIENT', parentId: '1', assetCount: 0, hasChildren: true },
-  { id: '8', path: 'CLIENT/Konvo Tadika Mawar 2026', name: 'Konvo Tadika Mawar 2026', parentId: '3', assetCount: 1284, hasChildren: true },
-  { id: '9', path: 'CLIENT/Kahwin Aina & Hafiz', name: 'Kahwin Aina & Hafiz', parentId: '3', assetCount: 864, hasChildren: false },
-  { id: '10', path: 'CLIENT/Konvo Tadika Seri Kasih', name: 'Konvo Tadika Seri Kasih', parentId: '3', assetCount: 742, hasChildren: false },
-  { id: '11', path: 'CLIENT/Annual Dinner Syarikat ABC', name: 'Annual Dinner Syarikat ABC', parentId: '3', assetCount: 290, hasChildren: false },
-  { id: '4', path: 'PORTFOLIO', name: 'PORTFOLIO', parentId: '1', assetCount: 0, hasChildren: true },
-  { id: '14', path: 'PORTFOLIO/Fesyen 2026', name: 'Fesyen 2026', parentId: '4', assetCount: 506, hasChildren: false },
-  { id: '5', path: 'PRINT', name: 'PRINT', parentId: '1', assetCount: 0, hasChildren: true },
-  { id: '13', path: 'PRINT/Aina Hafiz cetak', name: 'Aina Hafiz cetak', parentId: '5', assetCount: 80, hasChildren: false },
-  { id: '6', path: 'Raya', name: 'Raya', parentId: '1', assetCount: 0, hasChildren: false },
-  { id: '7', path: 'RAYA2026_frame', name: 'RAYA2026_frame', parentId: '1', assetCount: 0, hasChildren: false }
+  { id: '2', path: 'BTS', name: 'BTS', parentId: '1', assetCount: 0, totalCount: 0, hasChildren: true },
+  { id: '12', path: 'BTS/Aina Hafiz BTS', name: 'Aina Hafiz BTS', parentId: '2', assetCount: 158, totalCount: 158, hasChildren: false },
+  { id: '3', path: 'CLIENT', name: 'CLIENT', parentId: '1', assetCount: 0, totalCount: 0, hasChildren: true },
+  { id: '8', path: 'CLIENT/Konvo Tadika Mawar 2026', name: 'Konvo Tadika Mawar 2026', parentId: '3', assetCount: 1284, totalCount: 1284, hasChildren: true },
+  { id: '9', path: 'CLIENT/Kahwin Aina & Hafiz', name: 'Kahwin Aina & Hafiz', parentId: '3', assetCount: 864, totalCount: 864, hasChildren: false },
+  { id: '10', path: 'CLIENT/Konvo Tadika Seri Kasih', name: 'Konvo Tadika Seri Kasih', parentId: '3', assetCount: 742, totalCount: 742, hasChildren: false },
+  { id: '11', path: 'CLIENT/Annual Dinner Syarikat ABC', name: 'Annual Dinner Syarikat ABC', parentId: '3', assetCount: 290, totalCount: 290, hasChildren: false },
+  { id: '4', path: 'PORTFOLIO', name: 'PORTFOLIO', parentId: '1', assetCount: 0, totalCount: 0, hasChildren: true },
+  { id: '14', path: 'PORTFOLIO/Fesyen 2026', name: 'Fesyen 2026', parentId: '4', assetCount: 506, totalCount: 506, hasChildren: false },
+  { id: '5', path: 'PRINT', name: 'PRINT', parentId: '1', assetCount: 0, totalCount: 0, hasChildren: true },
+  { id: '13', path: 'PRINT/Aina Hafiz cetak', name: 'Aina Hafiz cetak', parentId: '5', assetCount: 80, totalCount: 80, hasChildren: false },
+  { id: '6', path: 'Raya', name: 'Raya', parentId: '1', assetCount: 0, totalCount: 0, hasChildren: false },
+  { id: '7', path: 'RAYA2026_frame', name: 'RAYA2026_frame', parentId: '1', assetCount: 0, totalCount: 0, hasChildren: false }
 ];
 
 const FOLDER_ASSETS = new Map<string, AssetItem[]>();

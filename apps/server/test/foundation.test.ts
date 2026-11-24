@@ -16,6 +16,7 @@ describe('db/migrations/001_init.sql', () => {
       '003_api.sql',
       '004_album_folder_recursive_default.sql',
       '005_requeue.sql',
+      '006_album_rules.sql',
     ]);
     pool = createPool();
   });
@@ -48,7 +49,7 @@ describe('db/migrations/001_init.sql', () => {
   it('is idempotent on a second run', async () => {
     const result = await runMigrations({ databaseUrl: requireTestDatabaseUrl() });
     expect(result.applied).toEqual([]);
-    expect(result.alreadyApplied).toBe(5);
+    expect(result.alreadyApplied).toBe(6);
   });
 
   it('rejects slugs outside [a-z0-9-]{3,60}', async () => {

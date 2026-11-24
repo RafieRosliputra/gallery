@@ -181,11 +181,9 @@ export function registerAdminRoutes(app: FastifyInstance, deps: AdminApiDeps): v
     // to three covers per album. The admin UI must not fan out per album.
     const { rows } = await deps.pool.query<AlbumAdminRow>(
       `WITH scope AS (
-         SELECT DISTINCT af.album_id, f.id AS folder_id
-         FROM album_folder af
-         JOIN folder root ON root.id = af.folder_id
-         JOIN folder f ON f.id = root.id
-           OR (af.recursive AND (root.path = '.' OR starts_with(f.path, root.path || '/')))
+         SELECT al.id AS album_id, s.fid AS folder_id
+         FROM album al CROSS JOIN LATERAL album_scope(al.id) s
+         WHERE ($1::bigint IS NULL OR al.client_id = $1)
        ),
        stats AS (
          SELECT s.album_id,
@@ -216,7 +214,7 @@ export function registerAdminRoutes(app: FastifyInstance, deps: AdminApiDeps): v
        )
        SELECT a.id, a.client_id, a.title, a.slug, a.allow_download,
               c.slug AS client_slug, c.name AS client_name,
-              (SELECT count(*) FROM album_folder af WHERE af.album_id = a.id)::int AS folder_count,
+              (SELECT count(*) FROM album_folder af WHERE af.album_id = a.id AND af.included)::int AS folder_count,
               COALESCE(st.asset_count, 0) AS asset_count,
               COALESCE(st.cameras, ARRAY[]::text[]) AS cameras,
               COALESCE(cv.covers, '[]'::json) AS covers
@@ -315,7 +313,7 @@ export function registerAdminRoutes(app: FastifyInstance, deps: AdminApiDeps): v
          RETURNING id, client_id, title, slug, allow_download,
                    (SELECT slug FROM client WHERE id = album.client_id) AS client_slug,
                    (SELECT name FROM client WHERE id = album.client_id) AS client_name,
-                   (SELECT count(*) FROM album_folder af WHERE af.album_id = album.id)::int AS folder_count,
+                   (SELECT count(*) FROM album_folder af WHERE af.album_id = album.id AND af.included)::int AS folder_count,
                    0::int AS asset_count,
                    ARRAY[]::text[] AS cameras,
                    '[]'::json AS covers`,
@@ -352,13 +350,74 @@ export function registerAdminRoutes(app: FastifyInstance, deps: AdminApiDeps): v
     const id = parseBigIntId((request.params as { id: string }).id);
     if (!id) return sendError(reply, 400, 'bad_id', 'ID tidak sah.');
     if (!(await findAlbumById(deps.pool, id))) return sendError(reply, 404, 'not_found', NOT_FOUND_MESSAGE);
-    const { rows } = await deps.pool.query<{ folder_id: string; path: string; recursive: boolean }>(
-      `SELECT af.folder_id, f.path, af.recursive
+    const { rows } = await deps.pool.query<{ folder_id: string; path: string; recursive: boolean; included: boolean }>(
+      `SELECT af.folder_id, f.path, af.recursive, af.included
        FROM album_folder af JOIN folder f ON f.id = af.folder_id
        WHERE af.album_id = $1 ORDER BY f.path`,
       [id],
     );
-    return reply.send({ folders: rows });
+    return reply.send({
+      folders: rows.map((row) => ({
+        folderId: row.folder_id,
+        path: row.path,
+        recursive: row.recursive,
+        included: row.included,
+      })),
+    });
+  });
+
+  // Replace the album's rule set in one transaction. Each rule is recursive:
+  // included = true adds the folder subtree, false carves it back out.
+  app.put('/s/api/admin/albums/:id/folders', async (request, reply) => {
+    const session = await guard(request, reply);
+    if (!session) return reply;
+    const id = parseBigIntId((request.params as { id: string }).id);
+    if (!id) return sendError(reply, 400, 'bad_id', 'ID tidak sah.');
+    const rules = parseRules(bodyRecord(request.body)?.['rules']);
+    if (!rules) return sendError(reply, 400, 'bad_rules', 'Senarai folder tidak sah.');
+    if (!(await findAlbumById(deps.pool, id))) return sendError(reply, 404, 'not_found', NOT_FOUND_MESSAGE);
+
+    const client = await deps.pool.connect();
+    try {
+      await client.query('BEGIN');
+      const known = await client.query<{ id: string }>('SELECT id FROM folder WHERE id = ANY($1::bigint[])', [
+        rules.map((rule) => rule.folderId),
+      ]);
+      if (known.rows.length !== rules.length) {
+        await client.query('ROLLBACK');
+        return sendError(reply, 400, 'bad_folder', 'Folder tidak dijumpai.');
+      }
+      await client.query('DELETE FROM album_folder WHERE album_id = $1', [id]);
+      if (rules.length > 0) {
+        await client.query(
+          `INSERT INTO album_folder (album_id, folder_id, recursive, included)
+           SELECT $1, u.fid, true, u.inc FROM unnest($2::bigint[], $3::boolean[]) AS u(fid, inc)`,
+          [id, rules.map((rule) => rule.folderId), rules.map((rule) => rule.included)],
+        );
+      }
+      await client.query('COMMIT');
+    } catch (error) {
+      await client.query('ROLLBACK').catch(() => undefined);
+      throw error;
+    } finally {
+      client.release();
+    }
+    const stats = await scopeStats(deps.pool, 'SELECT fid FROM album_scope($1)', [id]);
+    return reply.send({ rules: rules.length, ...stats });
+  });
+
+  // Live total for unsaved rules in the album editor.
+  app.post('/s/api/admin/scope-preview', async (request, reply) => {
+    const session = await guard(request, reply);
+    if (!session) return reply;
+    const rules = parseRules(bodyRecord(request.body)?.['rules']);
+    if (!rules) return sendError(reply, 400, 'bad_rules', 'Senarai folder tidak sah.');
+    const stats = await scopeStats(deps.pool, 'SELECT fid FROM folder_scope($1::bigint[], $2::boolean[], $3::boolean[])', [
+      rules.map((rule) => rule.folderId),
+      rules.map((rule) => rule.included),
+      rules.map(() => true),
+    ]);
+    return reply.send(stats);
   });
 
   app.post('/s/api/admin/albums/:id/folders', async (request, reply) => {
@@ -375,18 +434,22 @@ export function registerAdminRoutes(app: FastifyInstance, deps: AdminApiDeps): v
     if (recursive !== undefined && typeof recursive !== 'boolean') {
       return sendError(reply, 400, 'bad_request', 'recursive mesti boolean.');
     }
+    const included = body['included'];
+    if (included !== undefined && typeof included !== 'boolean') {
+      return sendError(reply, 400, 'bad_request', 'included mesti boolean.');
+    }
     if (!(await findAlbumById(deps.pool, id))) return sendError(reply, 404, 'not_found', NOT_FOUND_MESSAGE);
     const folder = await deps.pool.query<{ id: string; path: string }>('SELECT id, path FROM folder WHERE id = $1', [
       folderId,
     ]);
     if (!folder.rows[0]) return sendError(reply, 400, 'bad_folder', 'Folder tidak dijumpai.');
 
-    const { rows } = await deps.pool.query<{ folder_id: string; path: string; recursive: boolean }>(
-      `INSERT INTO album_folder (album_id, folder_id, recursive) VALUES ($1, $2, $3)
-       ON CONFLICT (album_id, folder_id) DO UPDATE SET recursive = EXCLUDED.recursive
-       RETURNING folder_id, recursive,
+    const { rows } = await deps.pool.query<{ folder_id: string; path: string; recursive: boolean; included: boolean }>(
+      `INSERT INTO album_folder (album_id, folder_id, recursive, included) VALUES ($1, $2, $3, $4)
+       ON CONFLICT (album_id, folder_id) DO UPDATE SET recursive = EXCLUDED.recursive, included = EXCLUDED.included
+       RETURNING folder_id, recursive, included,
                  (SELECT path FROM folder WHERE id = $2) AS path`,
-      [id, folderId, recursive ?? true],
+      [id, folderId, recursive ?? true, included ?? true],
     );
     return reply.send({ folder: rows[0] });
   });
@@ -530,12 +593,16 @@ interface FolderNodeRow {
   path: string;
   parent_id: string | null;
   asset_count: number;
+  total_count: number;
   has_children: boolean;
 }
 
 function folderNodeSql(condition: string): string {
   return `SELECT f.id, f.path, f.parent_id,
                  (SELECT count(*) FROM asset a WHERE a.folder_id = f.id AND a.deleted_at IS NULL)::int AS asset_count,
+                 (SELECT count(*) FROM asset a JOIN folder d ON d.id = a.folder_id
+                  WHERE a.deleted_at IS NULL
+                    AND (d.id = f.id OR f.path = '.' OR starts_with(d.path, f.path || '/')))::int AS total_count,
                  EXISTS(SELECT 1 FROM folder c WHERE c.parent_id = f.id) AS has_children
           FROM folder f WHERE ${condition}`;
 }
@@ -547,8 +614,44 @@ function toFolderNode(row: FolderNodeRow): AdminFolderNode {
     name: row.path === '.' ? '/' : path.posix.basename(row.path),
     parentId: row.parent_id,
     assetCount: row.asset_count,
+    totalCount: row.total_count,
     hasChildren: row.has_children,
   };
+}
+
+const MAX_RULES = 2000;
+
+/** `[{ folderId, included }]`, unique folders, at most MAX_RULES. */
+function parseRules(value: unknown): { folderId: string; included: boolean }[] | null {
+  if (!Array.isArray(value) || value.length > MAX_RULES) return null;
+  const seen = new Set<string>();
+  const rules: { folderId: string; included: boolean }[] = [];
+  for (const item of value) {
+    const record = bodyRecord(item);
+    if (!record) return null;
+    const raw = record['folderId'];
+    const folderId = typeof raw === 'string' ? parseBigIntId(raw) : null;
+    const included = record['included'];
+    if (!folderId || typeof included !== 'boolean' || seen.has(folderId)) return null;
+    seen.add(folderId);
+    rules.push({ folderId, included });
+  }
+  return rules;
+}
+
+async function scopeStats(
+  pool: Pool,
+  scopeSql: string,
+  values: unknown[],
+): Promise<{ assetCount: number; folderCount: number }> {
+  const { rows } = await pool.query<{ asset_count: number; folder_count: number }>(
+    `WITH scope AS (${scopeSql})
+     SELECT (SELECT count(*) FROM asset a WHERE a.deleted_at IS NULL AND a.folder_id IN (SELECT fid FROM scope))::int AS asset_count,
+            (SELECT count(DISTINCT a.folder_id) FROM asset a
+             WHERE a.deleted_at IS NULL AND a.folder_id IN (SELECT fid FROM scope))::int AS folder_count`,
+    values,
+  );
+  return { assetCount: rows[0]?.asset_count ?? 0, folderCount: rows[0]?.folder_count ?? 0 };
 }
 
 /** Admin bucket filter accepts either an album id or a slug. */

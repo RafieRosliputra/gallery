@@ -37,7 +37,9 @@
   const totalAssets = $derived(
     (view?.folders ?? []).reduce((sum, folder) => sum + folder.assetCount, 0) + (view?.assetCount ?? 0)
   );
-  const albumHref = $derived(`${base}/admin/albums/new?folders=${encodeURIComponent(view?.path ?? '')}`);
+  const albumHref = $derived(
+    `${base}/admin/albums/new?folder=${encodeURIComponent(view?.id ?? '')}&path=${encodeURIComponent(view?.path ?? '')}`
+  );
 </script>
 
 <svelte:head>

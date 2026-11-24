@@ -321,3 +321,14 @@ when the root folder has not been scanned yet.
 
 Slug rules: `^[a-z0-9-]{3,60}$`, one namespace shared by clients and albums.
 Conflicts return `409 {error:"slug_conflict"}` with a BM message.
+
+## Album folder rules (migration 006)
+
+- `album_folder.included`: each row is a recursive rule; per folder the most specific rule wins (own row, else nearest ancestor). `album_scope(album_id)` / `folder_scope(ids, included, recursive)` return the in-scope folder ids.
+- `GET /s/api/admin/albums/:id/folders` → `{ folders: [{ folderId, path, recursive, included }] }`
+- `PUT /s/api/admin/albums/:id/folders` body `{ rules: [{ folderId, included }] }` → replaces all rules (transaction), returns `{ rules, assetCount, folderCount }`
+- `POST /s/api/admin/scope-preview` body `{ rules }` → `{ assetCount, folderCount }` for unsaved rules
+- `GET /s/api/admin/folders?parent=` nodes now carry `totalCount` (subtree photos)
+- `GET /s/api/album/:slug/folders?folder=` → `{ folderId, trail, folders: [{ id, name, count, cover }], assetCount }`; a single top folder is the album top; excluded or empty folders are hidden (404 when asked for directly)
+- `GET /s/api/bucket/f:<folderId>?album=<slug>` is public; the album scope still applies
+- `GET /s/api/o/:id?album=<slug>&view=1` serves the original inline for viewer zoom even when the album's download is off
