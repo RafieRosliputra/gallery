@@ -1,7 +1,7 @@
 import { Pool } from 'pg';
 import { buildApp } from './app.js';
 import { loadConfig } from './config.js';
-import { createBoss, ensureQueues } from './jobs/boss.js';
+import { createBoss, enqueueThumbnails, ensureQueues, URGENT_PRIORITY } from './jobs/boss.js';
 import { createScanController, type ScanController } from './scan/controller.js';
 
 const config = loadConfig();
@@ -52,6 +52,7 @@ const app = buildApp({
   ...(config.originSecret ? { originSecret: config.originSecret } : {}),
   ...(config.sourceRoot ? { sourceRoot: config.sourceRoot } : {}),
   ...(scan ? { triggerScan: () => scan.trigger() } : {}),
+  ...(boss ? { enqueueUrgentThumbs: (ids: string[]) => enqueueThumbnails(boss!, ids, URGENT_PRIORITY) } : {}),
 });
 
 if (scan && config.scanIntervalMin > 0) {

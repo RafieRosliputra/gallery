@@ -336,3 +336,9 @@ Conflicts return `409 {error:"slug_conflict"}` with a BM message.
 ## Extra source folders (SOURCE_MOUNTS)
 
 `SOURCE_MOUNTS=client-1month=/data/mounts/client-1month` adds a read-only folder as a virtual top-level folder of SOURCE_ROOT: its files are scanned as `client-1month/...`, show in the folder tree and album picker, and resolve back into the mount for thumbnails, originals and ZIPs. A real folder of the same name directly under SOURCE_ROOT is shadowed. Production mounts `/mnt/ssd/client-1month` there (`:ro`, container joins gid 33 www-data to read it).
+
+## Thumbnails now, deletes, folder moves (migration 007)
+
+- `GET /s/api/admin/albums/:id/thumbs` → `{ total, ready, pending, failed }`; `POST` same path resets attempts and queues every missing thumbnail at priority 10 (ahead of the backlog) → `{ queued }`. Public `GET /s/api/album/:slug` carries `viewerIsAdmin` so the public page can offer the button to a signed-in admin.
+- Admin UI deletes albums (`DELETE /s/api/admin/albums/:id`) and clients (`DELETE /s/api/admin/clients/:id`, cascades to their albums). Source photos are never touched.
+- Scanner move detection (`scan/moves.ts`): a missing asset and a newer live asset with the same file name, size and mtime (±2 s) merge into the old row (id, thumbnails, favourites kept). Folders whose moved files all agree on one new location, with nothing left behind, are logged in `folder_move` and their album rules follow. `GET /s/api/admin/moves` lists them (Status page "Folder dipindah").

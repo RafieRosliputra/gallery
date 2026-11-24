@@ -61,6 +61,8 @@ export interface ClientPortalResponse {
 export interface AlbumResponse {
   album: AlbumCard;
   client: ClientSummary;
+  /** Signed-in admin is looking at the public page. */
+  viewerIsAdmin?: boolean;
   buckets: BucketRef[];
   cameras: CameraCount[];
   total: number;
@@ -170,6 +172,21 @@ export interface AlbumSaveRequest {
   slug: string;
   allowDownload: boolean;
   rules: FolderRule[];
+}
+
+export interface ThumbProgress {
+  total: number;
+  ready: number;
+  pending: number;
+  failed: number;
+}
+
+export interface FolderMoveEntry {
+  from: string;
+  to: string;
+  assets: number;
+  albums: number;
+  movedAt: string;
 }
 
 export interface PickerFolder {

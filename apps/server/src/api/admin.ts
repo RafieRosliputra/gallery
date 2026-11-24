@@ -16,6 +16,7 @@ export interface AdminApiDeps {
   /** Lower-case directory names hidden from the folder tree (SCAN_EXCLUDE). */
   excludeDirectories?: string[];
   triggerScan?: () => Promise<boolean>;
+  enqueueUrgentThumbs?: (assetIds: string[]) => Promise<number>;
 }
 
 const SLUG_MESSAGE = 'Slug mesti 3–60 aksara: huruf kecil a-z, nombor 0-9 dan tanda sengkang.';
@@ -404,6 +405,63 @@ export function registerAdminRoutes(app: FastifyInstance, deps: AdminApiDeps): v
     }
     const stats = await scopeStats(deps.pool, 'SELECT fid FROM album_scope($1)', [id]);
     return reply.send({ rules: rules.length, ...stats });
+  });
+
+  // Thumbnail progress for one album.
+  app.get('/s/api/admin/albums/:id/thumbs', async (request, reply) => {
+    const session = await guard(request, reply);
+    if (!session) return reply;
+    const id = parseBigIntId((request.params as { id: string }).id);
+    if (!id) return sendError(reply, 400, 'bad_id', 'ID tidak sah.');
+    if (!(await findAlbumById(deps.pool, id))) return sendError(reply, 404, 'not_found', NOT_FOUND_MESSAGE);
+    const { rows } = await deps.pool.query<{ total: number; ready: number; failed: number }>(
+      `SELECT count(*)::int AS total,
+              count(*) FILTER (WHERE a.thumb_ok)::int AS ready,
+              count(*) FILTER (WHERE NOT a.thumb_ok AND a.thumb_attempts >= 5)::int AS failed
+       FROM asset a
+       WHERE a.deleted_at IS NULL AND a.folder_id IN (SELECT fid FROM album_scope($1))`,
+      [id],
+    );
+    const row = rows[0] ?? { total: 0, ready: 0, failed: 0 };
+    return reply.send({ total: row.total, ready: row.ready, pending: row.total - row.ready, failed: row.failed });
+  });
+
+  // "Generate now": retry failed thumbnails and queue every missing one ahead of the backlog.
+  app.post('/s/api/admin/albums/:id/thumbs', async (request, reply) => {
+    const session = await guard(request, reply);
+    if (!session) return reply;
+    const id = parseBigIntId((request.params as { id: string }).id);
+    if (!id) return sendError(reply, 400, 'bad_id', 'ID tidak sah.');
+    if (!(await findAlbumById(deps.pool, id))) return sendError(reply, 404, 'not_found', NOT_FOUND_MESSAGE);
+    if (!deps.enqueueUrgentThumbs) {
+      return sendError(reply, 503, 'queue_unavailable', 'Barisan kerja tidak tersedia dalam proses ini.');
+    }
+    const { rows } = await deps.pool.query<{ id: string }>(
+      `UPDATE asset SET thumb_attempts = 0, thumb_queued_at = now()
+       WHERE deleted_at IS NULL AND thumb_ok = false AND folder_id IN (SELECT fid FROM album_scope($1))
+       RETURNING id::text AS id`,
+      [id],
+    );
+    const queued = rows.length > 0 ? await deps.enqueueUrgentThumbs(rows.map((row) => row.id)) : 0;
+    return reply.send({ queued });
+  });
+
+  // Folders the scanner saw move (newest first).
+  app.get('/s/api/admin/moves', async (request, reply) => {
+    const session = await guard(request, reply);
+    if (!session) return reply;
+    const { rows } = await deps.pool.query<{ from_path: string; to_path: string; assets: number; albums: number; moved_at: Date }>(
+      'SELECT from_path, to_path, assets, albums, moved_at FROM folder_move ORDER BY moved_at DESC, id DESC LIMIT 50',
+    );
+    return reply.send({
+      moves: rows.map((row) => ({
+        from: row.from_path,
+        to: row.to_path,
+        assets: row.assets,
+        albums: row.albums,
+        movedAt: row.moved_at.toISOString(),
+      })),
+    });
   });
 
   // Live total for unsaved rules in the album editor.

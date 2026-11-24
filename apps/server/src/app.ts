@@ -30,6 +30,8 @@ export interface AppOptions {
   /** SCAN_EXCLUDE names (lower-case); hidden from the admin folder tree. */
   excludeDirectories?: string[];
   triggerScan?: () => Promise<boolean>;
+  /** Queue thumbnails ahead of the backlog (admin "generate now"). */
+  enqueueUrgentThumbs?: (assetIds: string[]) => Promise<number>;
 }
 
 export function buildApp(options: AppOptions): FastifyInstance {
@@ -91,6 +93,7 @@ export function buildApp(options: AppOptions): FastifyInstance {
     r2Enabled: options.r2Enabled ?? false,
     excludeDirectories: options.excludeDirectories ?? [],
     ...(options.triggerScan ? { triggerScan: options.triggerScan } : {}),
+    ...(options.enqueueUrgentThumbs ? { enqueueUrgentThumbs: options.enqueueUrgentThumbs } : {}),
   });
   registerWebStatic(app, { root: webDir });
 

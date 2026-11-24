@@ -28,8 +28,10 @@ import type {
   AlbumFolderView,
   AlbumResponse,
   AlbumSaveRequest,
+  FolderMoveEntry,
   FolderRule,
   PickerFolder,
+  ThumbProgress,
   Asset,
   AssetResponse,
   BucketPageResponse,
@@ -251,7 +253,8 @@ async function albumDetail(slug: string, options: { cover?: boolean } = {}): Pro
     client: wire.client,
     buckets: wire.buckets.map(toBucket),
     cameras: counts,
-    total: wire.total
+    total: wire.total,
+    viewerIsAdmin: Boolean(wire.viewerIsAdmin)
   };
   albumDetailCache.set(key, result);
   return result;
@@ -405,6 +408,28 @@ export const api = {
       hasChildren: node.hasChildren
     });
     return { parent: wire.parent ? picker(wire.parent) : null, folders: wire.folders.map(picker) };
+  },
+
+  getAlbumThumbs(id: string): Promise<ThumbProgress> {
+    return request<ThumbProgress>(`/admin/albums/${encodeURIComponent(id)}/thumbs`);
+  },
+
+  forceAlbumThumbs(id: string): Promise<{ queued: number }> {
+    return request<{ queued: number }>(`/admin/albums/${encodeURIComponent(id)}/thumbs`, { method: 'POST' });
+  },
+
+  async deleteAlbum(id: string): Promise<void> {
+    await request<void>(`/admin/albums/${encodeURIComponent(id)}`, { method: 'DELETE' });
+    albumDetailCache.clear();
+  },
+
+  async deleteClient(id: string): Promise<void> {
+    await request<void>(`/admin/clients/${encodeURIComponent(id)}`, { method: 'DELETE' });
+    albumDetailCache.clear();
+  },
+
+  async getMoves(): Promise<FolderMoveEntry[]> {
+    return (await request<{ moves: FolderMoveEntry[] }>('/admin/moves')).moves;
   },
 
   previewScope(rules: FolderRule[]): Promise<ScopeStats> {

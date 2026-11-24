@@ -8,6 +8,8 @@ export const QUEUE_R2 = 'r2.upload';
  * so -1 sorts behind the default 0 used by future queues.
  */
 const LOW_PRIORITY = -1;
+/** Admin "generate now" for one album jumps the backlog. */
+export const URGENT_PRIORITY = 10;
 
 export function createBoss(databaseUrl: string): PgBoss {
   return new PgBoss({ connectionString: databaseUrl });
@@ -39,13 +41,17 @@ export async function ensureQueues(boss: PgBoss): Promise<void> {
 
 const INSERT_BATCH_SIZE = 500;
 
-export async function enqueueThumbnails(boss: PgBoss, assetIds: string[]): Promise<number> {
+export async function enqueueThumbnails(
+  boss: PgBoss,
+  assetIds: string[],
+  priority: number = LOW_PRIORITY,
+): Promise<number> {
   let sent = 0;
   for (let offset = 0; offset < assetIds.length; offset += INSERT_BATCH_SIZE) {
     const batch = assetIds.slice(offset, offset + INSERT_BATCH_SIZE);
     const ids = await boss.insert(
       QUEUE_THUMB,
-      batch.map((assetId) => ({ data: { assetId }, priority: LOW_PRIORITY })),
+      batch.map((assetId) => ({ data: { assetId }, priority })),
       { returnId: true },
     );
     sent += ids?.length ?? 0;

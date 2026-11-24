@@ -50,6 +50,48 @@
     if (!newSlug) newSlug = slugify(newName);
   }
 
+  async function removeClient(client: AdminClient) {
+    const albums = client.albums.length;
+    const ok = window.confirm(
+      `Padam klien "${client.name}"?\n\n` +
+        (albums > 0 ? `${albums} album dia akan dipadam sekali dan semua link /s/... dia akan mati.\n` : '') +
+        'Gambar asal dalam folder TIDAK dipadam.'
+    );
+    if (!ok) return;
+    try {
+      await api.deleteClient(client.id);
+      clients = clients.filter((candidate) => candidate.id !== client.id);
+      copied = `Klien ${client.name} dipadam.`;
+    } catch (cause) {
+      copied = cause instanceof Error ? `Padam gagal: ${cause.message}` : 'Padam gagal.';
+    }
+    window.setTimeout(() => (copied = ''), 3000);
+  }
+
+  async function removeAlbum(client: AdminClient, album: AdminClient['albums'][number]) {
+    const ok = window.confirm(
+      `Padam album "${album.title}"?\n\nLink /s/${album.slug} akan mati. Gambar asal dalam folder TIDAK dipadam.`
+    );
+    if (!ok) return;
+    try {
+      await api.deleteAlbum(album.id);
+      clients = clients.map((candidate) =>
+        candidate.id === client.id
+          ? {
+              ...candidate,
+              albumCount: candidate.albumCount - 1,
+              assetCount: candidate.assetCount - album.assetCount,
+              albums: candidate.albums.filter((item) => item.id !== album.id)
+            }
+          : candidate
+      );
+      copied = `Album ${album.title} dipadam.`;
+    } catch (cause) {
+      copied = cause instanceof Error ? `Padam gagal: ${cause.message}` : 'Padam gagal.';
+    }
+    window.setTimeout(() => (copied = ''), 3000);
+  }
+
   async function createClient(event: SubmitEvent) {
     event.preventDefault();
     if (creating) return;
@@ -117,6 +159,7 @@
         <button type="button" class="ghost" onclick={() => copy(`Link portal ${client.name}`, `/s/${client.slug}`)}>Salin link portal</button>
         <a class="ghost" href={`${base}/${client.slug}`}>Buka</a>
         <a class="dark" href={`${base}/admin/albums/new?client=${client.id}`}>+ Album</a>
+        <button type="button" class="ghost danger" onclick={() => removeClient(client)}>Padam klien</button>
       </div>
     </div>
 
@@ -144,6 +187,7 @@
                 <div class="row-actions">
                   <button type="button" class="ghost small" onclick={() => copy(`Link ${album.title}`, `/s/${album.slug}`)}>Salin</button>
                   <a class="ghost small" href={`${base}/admin/albums/${album.id}`}>Edit</a>
+                  <button type="button" class="ghost small danger" onclick={() => removeAlbum(client, album)}>Padam</button>
                 </div>
               </td>
             </tr>
@@ -158,6 +202,11 @@
 {/each}
 
 <style>
+  .danger {
+    color: #8a2a24 !important;
+    border-color: #e3b4af !important;
+  }
+
   .event-date {
     display: block;
     font-size: 12px;

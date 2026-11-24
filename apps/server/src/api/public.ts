@@ -145,6 +145,7 @@ export function registerPublicRoutes(app: FastifyInstance, deps: PublicApiDeps):
     const camera = cam && cam.toLowerCase() !== 'all' ? cam : null;
     const folderIds = await albumFolderIds(deps.pool, album.id);
     const buckets = await albumBuckets(deps.pool, folderIds, camera, deps.timezone);
+    const admin = await optionalAdmin(request, deps.auth);
     const cameras = await albumCameras(deps.pool, folderIds);
 
     const body: AlbumResponse = {
@@ -160,6 +161,7 @@ export function registerPublicRoutes(app: FastifyInstance, deps: PublicApiDeps):
       buckets,
       total: buckets.reduce((sum, bucket) => sum + bucket.count, 0),
       thumbBase: deps.thumbBase,
+      viewerIsAdmin: Boolean(admin),
     };
     return reply.header('Cache-Control', 'no-store').send(body);
   });

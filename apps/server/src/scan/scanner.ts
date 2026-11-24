@@ -5,6 +5,7 @@ import { readPhotoMetadata } from './exif.js';
 import { imageMimeType, walkSourceFiles } from './files.js';
 import { assertOutsideSource, toPosixPath } from './paths.js';
 import { removeDerivativeDirectory } from '../thumbs/generate.js';
+import { mergeMovedAssets, recordFolderMoves } from './moves.js';
 
 export interface ScanStats {
   scanned: number;
@@ -12,6 +13,8 @@ export interface ScanStats {
   changed: number;
   unchanged: number;
   deleted: number;
+  /** Files recognised as moved (same name, size and mtime at a new path). */
+  moved: number;
   errors: number;
   durationMs: number;
 }
@@ -89,6 +92,7 @@ async function scanLibraryLocked(options: ScanOptions): Promise<ScanStats> {
     changed: 0,
     unchanged: 0,
     deleted: 0,
+    moved: 0,
     errors: 0,
     durationMs: 0,
   };
@@ -178,6 +182,33 @@ async function scanLibraryLocked(options: ScanOptions): Promise<ScanStats> {
 
     await flush();
 
+    // Moved files keep their asset row (id, thumbnails, favourites).
+    const recent = Date.now() - 30 * 24 * 60 * 60 * 1000;
+    const missingIds = [...existing.entries()]
+      .filter(([assetPath, asset]) => !seen.has(assetPath) && (asset.deletedAt === null || asset.deletedAt.getTime() > recent))
+      .map(([, asset]) => asset.id);
+    try {
+      const merged = await mergeMovedAssets(pool, missingIds);
+      if (merged.length > 0) {
+        stats.moved = merged.length;
+        const dropped = new Set(merged.map((move) => move.newId));
+        const kept = changedIds.filter((id) => !dropped.has(id));
+        // Rows inserted this pass that turned out to be moves are not "added".
+        stats.added = Math.max(0, stats.added - (changedIds.length - kept.length));
+        changedIds.length = 0;
+        changedIds.push(...kept);
+        for (const move of merged) oldDerivKeys.push(move.droppedKey);
+        const folders = await recordFolderMoves(pool, merged);
+        for (const folder of folders) {
+          options.logger?.info(
+            `scan: folder moved ${folder.from} -> ${folder.to} (${folder.assets} files, ${folder.albums} album rules)`,
+          );
+        }
+      }
+    } catch (error) {
+      await recordError('scan', `move detection: ${(error as Error).message}`);
+    }
+
     const deleted = await pool.query(
       `UPDATE asset SET deleted_at = now(), scanned_at = now()
        WHERE deleted_at IS NULL AND path <> ALL($1::text[])`,
@@ -205,7 +236,7 @@ async function scanLibraryLocked(options: ScanOptions): Promise<ScanStats> {
       .catch((error: unknown) => options.logger?.error(`scan_run update: ${(error as Error).message}`));
     options.logger?.info(
       `scan: ${stats.scanned} files, ${stats.added} added, ${stats.changed} changed, ` +
-        `${stats.unchanged} unchanged, ${stats.deleted} deleted, ${stats.errors} errors in ${stats.durationMs}ms`,
+        `${stats.unchanged} unchanged, ${stats.deleted} deleted, ${stats.moved} moved, ${stats.errors} errors in ${stats.durationMs}ms`,
     );
   }
 }

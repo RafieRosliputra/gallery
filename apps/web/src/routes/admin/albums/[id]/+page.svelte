@@ -2,7 +2,7 @@
   import { base } from '$app/paths';
   import { page } from '$app/state';
   import { goto } from '$app/navigation';
-  import type { AdminAlbumDetail, FolderRule } from '$lib/api/models';
+  import type { AdminAlbumDetail, FolderRule, ThumbProgress } from '$lib/api/models';
   import type { ClientSummary } from '@gallery/shared';
   import { SLUG_REGEX } from '@gallery/shared';
   import { api, ApiError, isNotFound } from '$lib/api/client';
@@ -13,6 +13,10 @@
   let detail = $state<AdminAlbumDetail | null>(null);
   let clients = $state<ClientSummary[]>([]);
   let rules = $state<FolderRule[]>([]);
+  let thumbs = $state<ThumbProgress | null>(null);
+  let thumbBusy = $state(false);
+  let thumbNote = $state('');
+  let deleting = $state(false);
   let stats = $state<{ assetCount: number; folderCount: number } | null>(null);
   let clientId = $state('');
   let title = $state('');
@@ -26,6 +30,66 @@
 
   const id = $derived(page.params.id ?? '');
   const isNew = $derived(id === 'new');
+
+  // Thumbnail progress for a saved album; polls while anything is pending.
+  $effect(() => {
+    const albumId = id;
+    if (!albumId || albumId === 'new') return;
+    let stop = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const tick = async () => {
+      try {
+        thumbs = await api.getAlbumThumbs(albumId);
+      } catch {
+        thumbs = null;
+      }
+      if (!stop && thumbs && thumbs.pending > 0) timer = setTimeout(tick, 5000);
+    };
+    void tick();
+    return () => {
+      stop = true;
+      clearTimeout(timer);
+    };
+  });
+
+  async function forceThumbs() {
+    if (thumbBusy || isNew) return;
+    thumbBusy = true;
+    thumbNote = '';
+    try {
+      const result = await api.forceAlbumThumbs(id);
+      thumbNote = result.queued > 0 ? `${formatCount(result.queued)} gambar didahulukan. Siap sekejap lagi.` : 'Semua thumbnail dah siap.';
+      thumbs = await api.getAlbumThumbs(id);
+      if (thumbs.pending > 0) {
+        const again = async () => {
+          thumbs = await api.getAlbumThumbs(id).catch(() => thumbs);
+          if (thumbs && thumbs.pending > 0 && page.params.id === id) setTimeout(again, 5000);
+        };
+        setTimeout(again, 5000);
+      }
+    } catch (cause) {
+      thumbNote = cause instanceof ApiError ? cause.message : 'Gagal hantar. Cuba lagi.';
+    } finally {
+      thumbBusy = false;
+    }
+  }
+
+  async function removeAlbum() {
+    if (isNew || deleting || !detail) return;
+    const ok = window.confirm(
+      `Padam album "${detail.album.title}"?\n\nLink /s/${detail.album.slug} akan mati. Gambar asal dalam folder TIDAK dipadam.`
+    );
+    if (!ok) return;
+    deleting = true;
+    try {
+      await api.deleteAlbum(id);
+      await goto(`${base}/admin/clients`);
+    } catch (cause) {
+      error = cause instanceof ApiError ? cause.message : 'Padam gagal. Cuba lagi.';
+    } finally {
+      deleting = false;
+    }
+  }
 
   const sortedRules = $derived([...rules].sort((a, b) => a.path.localeCompare(b.path)));
 
@@ -192,6 +256,11 @@
     <h1>{isNew ? 'Album baru' : 'Edit album'}</h1>
   </div>
   <div class="actions">
+    {#if !isNew}
+      <button class="danger" type="button" onclick={removeAlbum} disabled={deleting || loading}>
+        {deleting ? 'Memadam…' : 'Padam album'}
+      </button>
+    {/if}
     <a class="cancel" href={`${base}/admin/albums`}>Batal</a>
     <button class="save" type="button" onclick={save} disabled={saving || loading}>
       {saving ? 'Menyimpan…' : 'Simpan'}
@@ -257,6 +326,26 @@
         </div>
       </section>
 
+      {#if !isNew}
+        <section class="panel">
+          <h2>Thumbnail</h2>
+          {#if thumbs}
+            <div class="bar" aria-hidden="true">
+              <span style:width={`${thumbs.total ? (thumbs.ready / thumbs.total) * 100 : 100}%`}></span>
+            </div>
+            <span class="thumb-line">
+              {formatCount(thumbs.ready)} / {formatCount(thumbs.total)} siap{#if thumbs.failed > 0} · {formatCount(thumbs.failed)} gagal{/if}
+            </span>
+          {:else}
+            <span class="muted">Menyemak…</span>
+          {/if}
+          <button class="force" type="button" onclick={forceThumbs} disabled={thumbBusy || !thumbs || thumbs.pending === 0}>
+            {thumbBusy ? 'Menghantar…' : 'Jana thumbnail sekarang'}
+          </button>
+          {#if thumbNote}<span class="muted">{thumbNote}</span>{/if}
+        </section>
+      {/if}
+
       <section class="panel">
         <h2>Link album (untuk customer klien)</h2>
         <label>
@@ -283,6 +372,48 @@
 {/if}
 
 <style>
+  .danger {
+    height: 44px;
+    padding: 0 16px;
+    border: 1px solid #e3b4af;
+    border-radius: 6px;
+    background: #fff;
+    color: #8a2a24;
+    font-size: 15px;
+  }
+
+  .danger:disabled,
+  .force:disabled {
+    opacity: 0.6;
+  }
+
+  .bar {
+    height: 8px;
+    border-radius: 4px;
+    background: var(--mist);
+    overflow: hidden;
+  }
+
+  .bar span {
+    display: block;
+    height: 100%;
+    background: var(--teal-ink);
+  }
+
+  .thumb-line {
+    font-size: 14px;
+  }
+
+  .force {
+    height: 42px;
+    border: 0;
+    border-radius: 6px;
+    background: var(--teal-ink);
+    color: #fff;
+    font-size: 15px;
+    font-weight: 600;
+  }
+
   .head {
     display: flex;
     flex-wrap: wrap;
