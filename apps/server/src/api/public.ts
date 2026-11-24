@@ -14,6 +14,7 @@ import { bodyRecord, NOT_FOUND_MESSAGE, parseBigIntId, parseLimit, sendError } f
 import { decodeAssetCursor, fetchAssetPage } from './assets-query.js';
 import { findAlbumBySlug, findClientBySlug, findAssetFile, albumFolderIds, type AlbumRecord } from './repository.js';
 import { toAssetItem } from './rows.js';
+import { albumFolderView } from './album-folders.js';
 
 export interface PublicApiDeps {
   pool: Pool;
@@ -74,12 +75,9 @@ export function registerPublicRoutes(app: FastifyInstance, deps: PublicApiDeps):
 
     const { rows } = await deps.pool.query<AlbumCardRow>(
       `WITH scope AS (
-         SELECT af.album_id, f.id AS folder_id
-         FROM album_folder af
-         JOIN folder root ON root.id = af.folder_id
-         JOIN folder f ON f.id = root.id
-           OR (af.recursive AND (root.path = '.' OR starts_with(f.path, root.path || '/')))
-         WHERE af.album_id IN (SELECT id FROM album WHERE client_id = $1)
+         SELECT al.id AS album_id, s.fid AS folder_id
+         FROM album al CROSS JOIN LATERAL album_scope(al.id) s
+         WHERE al.client_id = $1
        )
        SELECT a.id, a.client_id, a.title, a.slug, a.allow_download,
               (SELECT count(*) FROM asset x
@@ -166,6 +164,24 @@ export function registerPublicRoutes(app: FastifyInstance, deps: PublicApiDeps):
     return reply.header('Cache-Control', 'no-store').send(body);
   });
 
+  app.get('/s/api/album/:slug/folders', async (request, reply) => {
+    const slug = (request.params as { slug: string }).slug;
+    const album = await findAlbumBySlug(deps.pool, slug);
+    if (!album) return sendError(reply, 404, 'not_found', NOT_FOUND_MESSAGE);
+    const raw = queryText(request.query, 'folder');
+    const folderId = raw ? parseBigIntId(raw) : null;
+    if (raw && !folderId) return sendError(reply, 400, 'bad_id', 'ID folder tidak sah.');
+    const view = await albumFolderView({
+      pool: deps.pool,
+      albumId: album.id,
+      albumSlug: album.slug,
+      thumbBase: deps.thumbBase,
+      folderId,
+    });
+    if (view === 'not_found') return sendError(reply, 404, 'not_found', NOT_FOUND_MESSAGE);
+    return reply.header('Cache-Control', 'no-store').send(view);
+  });
+
   // Viewer deep links (`/s/<album>?p=<assetId>`) resolve one asset. Scope rules
   // are the same as `GET /s/api/o/:assetId`: an admin session, or the album that
   // owns the asset's folder. A public caller must name that album.
@@ -206,7 +222,9 @@ export function registerPublicRoutes(app: FastifyInstance, deps: PublicApiDeps):
     const admin = await optionalAdmin(request, deps.auth);
 
     const folderKey = /^f:(\d{1,19})$/.test(key);
-    if (folderKey && !admin) {
+    // Folder buckets are public only inside an album (the album scope still
+    // applies, so a folder outside it returns nothing).
+    if (folderKey && !admin && !albumSlug) {
       return sendError(reply, 401, 'unauthorized', 'Sesi tidak sah atau telah tamat.');
     }
     if (!MONTH_KEY.test(key) && !folderKey) {

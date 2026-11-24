@@ -2,7 +2,7 @@
   import { base } from '$app/paths';
   import { page } from '$app/state';
   import { goto } from '$app/navigation';
-  import type { AlbumResponse, Asset } from '$lib/api/models';
+  import type { AlbumFolderView, AlbumResponse, Asset, BucketRef } from '$lib/api/models';
   import { api, downloadBlob } from '$lib/api/client';
   import { formatCount, formatShortDate } from '$lib/format';
   import { getFavourites } from '$lib/stores/favourites';
@@ -12,6 +12,7 @@
   import IconButton from '$lib/components/IconButton.svelte';
   import JustifiedGrid from '$lib/components/JustifiedGrid.svelte';
   import Logo from '$lib/components/Logo.svelte';
+  import Photo from '$lib/components/Photo.svelte';
   import MoreMenu from '$lib/components/MoreMenu.svelte';
   import ShareSheet from '$lib/components/ShareSheet.svelte';
   import Viewer from '$lib/components/Viewer.svelte';
@@ -20,12 +21,10 @@
   let { data }: { data: AlbumResponse } = $props();
 
   const album = $derived(data.album);
-  const cameras = $derived(data.cameras);
   const favourites = $derived(getFavourites(album.slug));
   const favIds = $derived($favourites);
 
-  const camParam = $derived(page.url.searchParams.get('cam'));
-  const activeCam = $derived(camParam && cameras.some((camera) => camera.camera === camParam) ? camParam : null);
+  const folderParam = $derived(page.url.searchParams.get('f'));
   const viewerId = $derived(page.url.searchParams.get('p'));
   const favMode = $derived(page.url.searchParams.get('fav') === '1');
   const backSlug = $derived(openedFromClient(album.slug));
@@ -40,6 +39,39 @@
   let zipBusy = $state(false);
   let viewerPushed = $state(false);
   let favPushed = $state(false);
+  let view = $state<AlbumFolderView | null>(null);
+  let viewKey = $state('');
+  let viewError = $state('');
+
+  // Folder navigation: `?f=<folderId>`; no param = album top.
+  $effect(() => {
+    const slug = album.slug;
+    const folder = folderParam;
+    const key = `${slug}:${folder ?? ''}`;
+    let cancelled = false;
+    viewError = '';
+    api
+      .getAlbumFolders(slug, folder)
+      .then((result) => {
+        if (cancelled) return;
+        view = result;
+        viewKey = key;
+      })
+      .catch((cause) => {
+        if (cancelled) return;
+        console.error('folder album gagal', cause);
+        viewError = 'Folder tak dapat dimuatkan.';
+      });
+    return () => {
+      cancelled = true;
+    };
+  });
+
+  const folderBuckets = $derived<BucketRef[]>(
+    view && view.folderId && view.assetCount > 0
+      ? [{ key: `f:${view.folderId}`, count: view.assetCount, label: '' }]
+      : []
+  );
 
   $effect(() => {
     if (!viewerId) viewerPushed = false;
@@ -51,8 +83,8 @@
 
   const loaded = $derived.by(() => {
     const map = new Map<string, Asset>();
-    for (const bucket of data.buckets) {
-      for (const item of itemsByBucket[`${activeCam ?? 'all'}:${bucket.key}`] ?? []) {
+    for (const bucket of folderBuckets) {
+      for (const item of itemsByBucket[`all:${bucket.key}`] ?? []) {
         map.set(item.id, item);
       }
     }
@@ -74,7 +106,9 @@
     return list;
   });
 
-  const viewerTotal = $derived(favMode ? Math.max(favIds.length, viewerItems.length) : album.assetCount);
+  const viewerTotal = $derived(
+    favMode ? Math.max(favIds.length, viewerItems.length) : Math.max(view?.assetCount ?? 0, viewerItems.length)
+  );
 
   $effect(() => {
     const id = viewerId;
@@ -190,9 +224,8 @@
     else void goto(urlWith({ fav: null }), { replaceState: true, noScroll: true });
   }
 
-  function setCam(value: string | null) {
-    void goto(urlWith({ cam: value }), { noScroll: true, keepFocus: true });
-    window.scrollTo({ top: 0, behavior: 'auto' });
+  function openFolder(id: string | null) {
+    void goto(urlWith({ f: id }), { keepFocus: true });
   }
 
   function openShare() {
@@ -217,7 +250,7 @@
     zipBusy = true;
     toast = 'Menyediakan ZIP…';
     try {
-      const blob = await api.zip({ albumSlug: album.slug, cam: activeCam ?? undefined });
+      const blob = await api.zip({ albumSlug: album.slug });
       downloadBlob(blob, `${album.slug}.zip`);
       toast = 'Download bermula.';
     } catch {
@@ -345,42 +378,73 @@
         <span>{formatCount(album.assetCount)} gambar{#if album.takenAt} · {formatShortDate(album.takenAt)}{/if}</span>
       </div>
 
-      {#if cameras.length > 0}
-        <div role="tablist" aria-label="Kamera" class="tabs">
-          <button
-            type="button"
-            role="tab"
-            aria-selected={activeCam === null}
-            class:on={activeCam === null}
-            onclick={() => setCam(null)}
+      {#if view && view.trail.length > 0}
+        <nav class="crumbs" aria-label="Folder">
+          <a
+            href={urlWith({ f: null })}
+            onclick={(event) => {
+              event.preventDefault();
+              openFolder(null);
+            }}>Semua folder</a
           >
-            Semua<span class="tab-count"> · {formatCount(album.assetCount)}</span>
-          </button>
-          {#each cameras as camera (camera.camera)}
-            <button
-              type="button"
-              role="tab"
-              aria-selected={activeCam === camera.camera}
-              class:on={activeCam === camera.camera}
-              onclick={() => setCam(camera.camera)}
-            >
-              {camera.camera}<span class="tab-count"> · {formatCount(camera.count)}</span>
-            </button>
+          {#each view.trail as step, index (step.id)}
+            <span aria-hidden="true">›</span>
+            {#if index === view.trail.length - 1}
+              <strong aria-current="page">{step.name}</strong>
+            {:else}
+              <a
+                href={urlWith({ f: step.id })}
+                onclick={(event) => {
+                  event.preventDefault();
+                  openFolder(step.id);
+                }}>{step.name}</a
+              >
+            {/if}
           {/each}
-        </div>
+        </nav>
       {/if}
 
-      {#key `${album.slug}:${activeCam ?? 'all'}`}
-        <BucketVirtualList
-          buckets={data.buckets}
-          albumSlug={album.slug}
-          cam={activeCam}
-          theme="dark"
-          {favourites}
-          onopen={openViewer}
-          onloaded={onBucketLoaded}
-        />
-      {/key}
+      {#if viewError}
+        <p class="empty">{viewError}</p>
+      {:else if !view}
+        <p class="empty" aria-busy="true">Memuatkan…</p>
+      {:else}
+        {#if view.folders.length > 0}
+          <div class="folders">
+            {#each view.folders as card (card.id)}
+              <a
+                class="folder"
+                href={urlWith({ f: card.id })}
+                onclick={(event) => {
+                  event.preventDefault();
+                  openFolder(card.id);
+                }}
+              >
+                <span class="cover">
+                  {#if card.cover}<Photo asset={card.cover} />{/if}
+                </span>
+                <span class="folder-name">{card.name}</span>
+                <span class="folder-count">{formatCount(card.count)} gambar</span>
+              </a>
+            {/each}
+          </div>
+        {/if}
+
+        {#if folderBuckets.length > 0}
+          {#key viewKey}
+            <BucketVirtualList
+              buckets={folderBuckets}
+              albumSlug={album.slug}
+              theme="dark"
+              {favourites}
+              onopen={openViewer}
+              onloaded={onBucketLoaded}
+            />
+          {/key}
+        {:else if view.folders.length === 0}
+          <p class="empty">Tiada gambar dalam folder ni.</p>
+        {/if}
+      {/if}
     {/if}
   </main>
 
@@ -542,29 +606,66 @@
     color: var(--muted);
   }
 
-  .tabs {
+  .crumbs {
     display: flex;
-    gap: 8px;
     flex-wrap: wrap;
-    border-bottom: 1px solid var(--line-dark);
-    padding-bottom: 12px;
+    align-items: center;
+    gap: 8px;
+    font-size: 15px;
+    color: var(--muted);
   }
 
-  .tabs button {
-    height: 40px;
-    padding: 0 16px;
-    border: 1px solid var(--line-hard);
-    border-radius: 20px;
-    background: transparent;
-    color: #d7dddf;
-    font-size: 14px;
-  }
-
-  .tabs button.on {
-    border-color: transparent;
-    background: var(--text);
-    color: var(--public-bg);
+  .crumbs a {
+    color: var(--teal);
     font-weight: 600;
+  }
+
+  .crumbs strong {
+    color: #fff;
+    font-weight: 600;
+  }
+
+  .folders {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 18px 14px;
+  }
+
+  .folder {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    color: inherit;
+    text-decoration: none;
+  }
+
+  .cover {
+    position: relative;
+    display: block;
+    aspect-ratio: 4 / 3;
+    border-radius: 10px;
+    overflow: hidden;
+    background: #262d31;
+    margin-bottom: 6px;
+  }
+
+  .folder:hover .cover {
+    outline: 2px solid var(--teal);
+    outline-offset: 2px;
+  }
+
+  .folder-name {
+    font-size: 15px;
+    font-weight: 600;
+    color: #fff;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .folder-count {
+    font-size: 13px;
+    color: var(--muted);
   }
 
   .fav-note {
@@ -633,17 +734,9 @@
       display: none;
     }
 
-    .tabs {
-      padding: 0 0 12px;
-    }
-
-    .tabs button {
-      height: 40px;
-      padding: 0 14px;
-    }
-
-    .tab-count {
-      display: none;
+    .folders {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px 10px;
     }
 
     footer {

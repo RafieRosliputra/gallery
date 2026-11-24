@@ -432,6 +432,94 @@ describe('public and admin API', () => {
     expect(deletedClient.statusCode).toBe(204);
   });
 
+  it('applies include/exclude folder rules and serves album folder navigation', async () => {
+    const created = await app.inject({
+      method: 'POST',
+      url: '/s/api/admin/albums',
+      headers: { cookie: ids.adminCookie },
+      payload: { client_id: ids.clientKlien, title: 'Rules', slug: 'album-rules', allow_download: false },
+    });
+    expect(created.statusCode).toBe(201);
+    const albumId = created.json().album.id as string;
+    const rules = [
+      { folderId: ids.klien, included: true },
+      { folderId: ids.cam2, included: false },
+    ];
+
+    const preview = await app.inject({
+      method: 'POST',
+      url: '/s/api/admin/scope-preview',
+      headers: { cookie: ids.adminCookie },
+      payload: { rules },
+    });
+    expect(preview.json()).toMatchObject({ assetCount: 2 });
+
+    const saved = await app.inject({
+      method: 'PUT',
+      url: `/s/api/admin/albums/${albumId}/folders`,
+      headers: { cookie: ids.adminCookie },
+      payload: { rules },
+    });
+    expect(saved.statusCode).toBe(200);
+    expect(saved.json()).toMatchObject({ rules: 2, assetCount: 2 });
+
+    const listed = await app.inject({
+      method: 'GET',
+      url: `/s/api/admin/albums/${albumId}/folders`,
+      headers: { cookie: ids.adminCookie },
+    });
+    expect(listed.json().folders).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ folderId: ids.klien, included: true }),
+        expect.objectContaining({ folderId: ids.cam2, included: false }),
+      ]),
+    );
+
+    const bad = await app.inject({
+      method: 'PUT',
+      url: `/s/api/admin/albums/${albumId}/folders`,
+      headers: { cookie: ids.adminCookie },
+      payload: { rules: [{ folderId: ids.klien, included: 'yes' }] },
+    });
+    expect(bad.statusCode).toBe(400);
+
+    // Single top folder (Klien Demo) is the album top: its subfolders are the cards.
+    const top = await app.inject({ method: 'GET', url: '/s/api/album/album-rules/folders' });
+    expect(top.statusCode).toBe(200);
+    expect(top.json()).toMatchObject({ folderId: ids.klien, trail: [], assetCount: 0 });
+    expect(top.json().folders.map((card: { name: string; count: number }) => [card.name, card.count])).toEqual([
+      ['Album A', 1],
+      ['Album B', 1],
+    ]);
+    expect(top.json().folders[0].cover.id).toBe(ids.a1);
+
+    const inside = await app.inject({ method: 'GET', url: `/s/api/album/album-rules/folders?folder=${ids.albumA}` });
+    expect(inside.json()).toMatchObject({
+      folderId: ids.albumA,
+      trail: [{ id: ids.albumA, name: 'Album A' }],
+      folders: [],
+      assetCount: 1,
+    });
+
+    const excluded = await app.inject({ method: 'GET', url: `/s/api/album/album-rules/folders?folder=${ids.cam2}` });
+    expect(excluded.statusCode).toBe(404);
+
+    const bucket = await app.inject({ method: 'GET', url: `/s/api/bucket/f:${ids.albumA}?album=album-rules` });
+    expect(bucket.statusCode).toBe(200);
+    expect(bucket.json().assets.map((asset: { id: string }) => asset.id)).toEqual([ids.a1]);
+    const outside = await app.inject({ method: 'GET', url: `/s/api/bucket/f:${ids.cam2}?album=album-rules` });
+    expect(outside.json().assets).toEqual([]);
+
+    const scopedOut = await app.inject({ method: 'GET', url: `/s/api/o/${ids.a2}?album=album-rules` });
+    expect(scopedOut.statusCode).toBe(403);
+    const noDownload = await app.inject({ method: 'GET', url: `/s/api/o/${ids.a1}?album=album-rules` });
+    expect(noDownload.json().error).toBe('download_disabled');
+    const zoomView = await app.inject({ method: 'GET', url: `/s/api/o/${ids.a1}?album=album-rules&view=1` });
+    expect(zoomView.statusCode).not.toBe(403);
+
+    await app.inject({ method: 'DELETE', url: `/s/api/admin/albums/${albumId}`, headers: { cookie: ids.adminCookie } });
+  });
+
   it('returns lazy folder children with counts', async () => {
     const root = await app.inject({
       method: 'GET',

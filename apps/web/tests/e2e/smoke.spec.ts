@@ -13,11 +13,13 @@ test('portal → album → viewer → back → portal', async ({ page }) => {
   await expect(page.getByRole('heading', { name: 'Konvo 2026' })).toBeVisible();
   await expect(page.locator('a.back-mobile')).toBeVisible();
 
+  await page.locator('a.folder', { hasText: 'Cam 1' }).click();
+  await expect(page).toHaveURL(/[?&]f=1/);
   const tiles = page.getByRole('button', { name: 'Buka gambar' });
   await expect(tiles.first()).toBeVisible();
   await tiles.first().click();
   await expect(page.getByRole('dialog', { name: 'Lihat gambar' })).toBeVisible();
-  await expect(page).toHaveURL(/\?p=/);
+  await expect(page).toHaveURL(/[?&]p=/);
 
   await page.getByRole('button', { name: 'Kembali ke galeri' }).click();
   await expect(page.getByRole('dialog', { name: 'Lihat gambar' })).toBeHidden();
@@ -49,17 +51,23 @@ test('deep-linked asset opens the viewer and asks the API with the album scope',
   expect(assetRequests.some((search) => search.includes('album=mawar-konvo-2026'))).toBe(true);
 });
 
-test('camera tabs filter the album and update the URL', async ({ page }) => {
+test('album opens on folder cards; a folder shows its photos and the breadcrumb goes back', async ({ page }) => {
   await page.goto('/s/mawar-konvo-2026');
-  await expect(page.getByRole('tab', { name: /Semua/ })).toHaveAttribute('aria-selected', 'true');
+  await expect(page.locator('a.folder')).toHaveCount(2);
+  await expect(page.getByRole('button', { name: 'Buka gambar' })).toHaveCount(0);
 
-  await page.getByRole('tab', { name: /Cam 1/ }).click();
-  await expect(page).toHaveURL(/cam=Cam(\+|%20)1/);
-  await expect(page.getByRole('tab', { name: /Cam 1/ })).toHaveAttribute('aria-selected', 'true');
+  await page.locator('a.folder', { hasText: 'Cam 2' }).click();
+  await expect(page).toHaveURL(/[?&]f=2/);
+  await expect(page.getByRole('button', { name: 'Buka gambar' }).first()).toBeVisible();
+  await expect(page.locator('.crumbs')).toContainText('Cam 2');
+
+  await page.locator('.crumbs a', { hasText: 'Semua folder' }).click();
+  await expect(page).not.toHaveURL(/[?&]f=/);
+  await expect(page.locator('a.folder')).toHaveCount(2);
 });
 
 test('favourites persist in localStorage and can be cleared', async ({ page }) => {
-  await page.goto('/s/mawar-konvo-2026');
+  await page.goto('/s/mawar-konvo-2026?f=1');
   const tiles = page.getByRole('button', { name: 'Buka gambar' });
   await expect(tiles.first()).toBeVisible();
   await tiles.first().click();

@@ -4,6 +4,8 @@ import type {
   AdminFolderNode as WireFolderNode,
   AdminFolderTreeResponse,
   AdminSessionResponse,
+  AlbumFolderResponse,
+  ScopeStats,
   AdminStatusResponse,
   AlbumCard as WireAlbumCard,
   AlbumResponse as WireAlbumResponse,
@@ -20,12 +22,14 @@ import type {
   AdminBucketsResponse,
   AdminClient,
   AdminFolderCard,
-  AdminFolderNode,
   AdminFolderView,
   AdminStatusView,
   AlbumCard,
+  AlbumFolderView,
   AlbumResponse,
   AlbumSaveRequest,
+  FolderRule,
+  PickerFolder,
   Asset,
   AssetResponse,
   BucketPageResponse,
@@ -208,18 +212,8 @@ async function albumDetail(slug: string, options: { cover?: boolean } = {}): Pro
   if (cached) return cached;
 
   const wire = await request<WireAlbumResponse>(`/album/${encodeURIComponent(slug)}`);
-  const counts = await Promise.all(
-    wire.cameras.map(async (camera) => {
-      try {
-        const filtered = await request<WireAlbumResponse>(
-          `/album/${encodeURIComponent(slug)}${query({ cam: camera })}`
-        );
-        return { camera, count: filtered.total };
-      } catch {
-        return { camera, count: 0 };
-      }
-    })
-  );
+  // Camera tabs are gone (albums navigate by folder); no per-camera fan-out.
+  const counts = wire.cameras.map((camera) => ({ camera, count: 0 }));
 
   let covers: Asset[] = [];
   if (options.cover && wire.buckets[0]) {
@@ -271,42 +265,6 @@ async function adminAlbums(): Promise<AdminAlbum[]> {
 }
 
 interface WireFolderTree extends AdminFolderTreeResponse {}
-
-async function folderTree(): Promise<{ node: WireFolderNode; depth: number }[]> {
-  const root = await request<WireFolderTree>('/admin/folders');
-  const nodes: { node: WireFolderNode; depth: number }[] = [];
-  const roots = root.folders.slice(0, 40);
-
-  const expanded = await Promise.all(
-    roots.map(async (folder) => {
-      if (!folder.hasChildren) return [];
-      try {
-        const children = await request<WireFolderTree>(`/admin/folders${query({ parent: folder.id })}`);
-        return children.folders;
-      } catch {
-        return [];
-      }
-    })
-  );
-  roots.forEach((folder, index) => {
-    nodes.push({ node: folder, depth: 0 });
-    for (const child of expanded[index] ?? []) nodes.push({ node: child, depth: 1 });
-  });
-  return nodes;
-}
-
-function uiFolder(node: WireFolderNode, depth: number, selectedIds: Set<string>): AdminFolderNode {
-  return {
-    id: node.id,
-    name: node.name,
-    path: node.path,
-    depth,
-    assetCount: node.assetCount,
-    folderCount: node.hasChildren ? 1 : 0,
-    hasChildren: node.hasChildren,
-    selected: selectedIds.has(node.id)
-  };
-}
 
 async function adminClients(): Promise<AdminClient[]> {
   const [clients, albums] = await Promise.all([
@@ -417,33 +375,59 @@ export const api = {
   },
 
   async getAdminAlbum(id: string): Promise<AdminAlbumDetail> {
-    const [albums, selected, clients, tree] = await Promise.all([
+    const [albums, selected, clients] = await Promise.all([
       adminAlbums(),
       request<{ folders: AdminAlbumFolder[] }>(`/admin/albums/${encodeURIComponent(id)}/folders`),
-      request<{ clients: ClientSummary[] }>('/admin/clients'),
-      folderTree()
+      request<{ clients: ClientSummary[] }>('/admin/clients')
     ]);
     const album = albums.find((candidate) => candidate.id === id);
     if (!album) throw new ApiError(404, 'Album tak dijumpai.');
-    const selectedIds = new Set(selected.folders.map((folder) => folder.folderId));
-
-    let previews: Asset[] = [];
-    if (album.coverAssetIds.length === 0 && selected.folders[0]) {
-      try {
-        const page = await request<BucketResponse>(
-          `/bucket/f:${encodeURIComponent(selected.folders[0].folderId)}${query({ limit: 4 })}`
-        );
-        previews = page.assets.map(toAsset);
-      } catch {
-        previews = [];
-      }
-    }
     return {
-      album: { ...album, coverAssetIds: album.coverAssetIds, covers: previews.length ? previews : album.covers },
-      folders: tree.map(({ node, depth }) => uiFolder(node, depth, selectedIds)),
-      previews: previews.length ? previews : album.covers,
+      album,
+      rules: selected.folders.map((folder) => ({
+        folderId: folder.folderId,
+        path: folder.path,
+        included: folder.included
+      })),
+      previews: album.covers,
       totalAssets: album.assetCount,
       clients: clients.clients
+    };
+  },
+
+  async getFolderChildren(parentId?: string): Promise<{ parent: PickerFolder | null; folders: PickerFolder[] }> {
+    const wire = await request<AdminFolderTreeResponse>(`/admin/folders${query({ parent: parentId })}`);
+    const picker = (node: WireFolderNode): PickerFolder => ({
+      id: node.id,
+      name: node.name,
+      path: node.path,
+      totalCount: node.totalCount ?? node.assetCount,
+      hasChildren: node.hasChildren
+    });
+    return { parent: wire.parent ? picker(wire.parent) : null, folders: wire.folders.map(picker) };
+  },
+
+  previewScope(rules: FolderRule[]): Promise<ScopeStats> {
+    return request<ScopeStats>('/admin/scope-preview', {
+      method: 'POST',
+      body: JSON.stringify({ rules: rules.map(({ folderId, included }) => ({ folderId, included })) })
+    });
+  },
+
+  async getAlbumFolders(slug: string, folderId?: string | null): Promise<AlbumFolderView> {
+    const wire = await request<AlbumFolderResponse>(
+      `/album/${encodeURIComponent(slug)}/folders${query({ folder: folderId })}`
+    );
+    return {
+      folderId: wire.folderId,
+      trail: wire.trail,
+      folders: wire.folders.map((card) => ({
+        id: card.id,
+        name: card.name,
+        count: card.count,
+        cover: card.cover ? toAsset(card.cover) : null
+      })),
+      assetCount: wire.assetCount
     };
   },
 
@@ -461,29 +445,10 @@ export const api = {
       }
     );
     const albumId = response.album.id;
-    let current: string[] = [];
-    if (id) {
-      const existing = await request<{ folders: AdminAlbumFolder[] }>(
-        `/admin/albums/${encodeURIComponent(albumId)}/folders`
-      );
-      current = existing.folders.map((folder) => folder.folderId);
-    }
-    const wanted = new Set(body.folderIds);
-    const toAdd = body.folderIds.filter((folderId) => !current.includes(folderId));
-    const toRemove = current.filter((folderId) => !wanted.has(folderId));
-    await Promise.all([
-      ...toAdd.map((folderId) =>
-        request(`/admin/albums/${encodeURIComponent(albumId)}/folders`, {
-          method: 'POST',
-          body: JSON.stringify({ folderId, recursive: true })
-        })
-      ),
-      ...toRemove.map((folderId) =>
-        request(`/admin/albums/${encodeURIComponent(albumId)}/folders/${encodeURIComponent(folderId)}`, {
-          method: 'DELETE'
-        })
-      )
-    ]);
+    await request(`/admin/albums/${encodeURIComponent(albumId)}/folders`, {
+      method: 'PUT',
+      body: JSON.stringify({ rules: body.rules.map(({ folderId, included }) => ({ folderId, included })) })
+    });
 
     albumDetailCache.clear();
     let detail: AlbumResponse | null = null;

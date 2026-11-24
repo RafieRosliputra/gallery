@@ -87,7 +87,7 @@
 </script>
 
 <section class="bucket" aria-label={bucket.label ?? bucket.key}>
-  <h2>{bucket.label ?? bucket.key}</h2>
+  {#if bucket.label !== ''}<h2>{bucket.label ?? bucket.key}</h2>{/if}
   <JustifiedGrid
     assets={items}
     {targetRowHeight}

@@ -113,9 +113,16 @@ export interface AdminFolderNode {
   selected?: boolean;
 }
 
+/** Album editor rule: a folder subtree switched on (included) or carved out. */
+export interface FolderRule {
+  folderId: string;
+  path: string;
+  included: boolean;
+}
+
 export interface AdminAlbumDetail {
   album: AdminAlbum;
-  folders: AdminFolderNode[];
+  rules: FolderRule[];
   previews: Asset[];
   totalAssets: number;
   clients: ClientSummary[];
@@ -162,7 +169,29 @@ export interface AlbumSaveRequest {
   title: string;
   slug: string;
   allowDownload: boolean;
-  folderIds: string[];
+  rules: FolderRule[];
+}
+
+export interface PickerFolder {
+  id: string;
+  name: string;
+  path: string;
+  totalCount: number;
+  hasChildren: boolean;
+}
+
+export interface AlbumFolderCard {
+  id: string;
+  name: string;
+  count: number;
+  cover: Asset | null;
+}
+
+export interface AlbumFolderView {
+  folderId: string | null;
+  trail: { id: string; name: string }[];
+  folders: AlbumFolderCard[];
+  assetCount: number;
 }
 
 export interface CreateClientRequest {

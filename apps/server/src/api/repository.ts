@@ -86,20 +86,11 @@ export async function findAlbumById(pool: Pool, id: string): Promise<AlbumRecord
 }
 
 /**
- * Folder ids covered by an album. A non-recursive album_folder row selects the
- * folder itself; a recursive row selects it and every descendant. The root
- * folder `.` covers the whole library.
+ * Folder ids covered by an album: per folder the most specific album_folder
+ * rule wins (see db/migrations/006_album_rules.sql), included rules select.
  */
 export async function albumFolderIds(pool: Pool, albumId: string): Promise<string[]> {
-  const { rows } = await pool.query<{ id: string }>(
-    `SELECT DISTINCT f.id
-     FROM album_folder af
-     JOIN folder root ON root.id = af.folder_id
-     JOIN folder f ON f.id = root.id
-       OR (af.recursive AND (root.path = '.' OR starts_with(f.path, root.path || '/')))
-     WHERE af.album_id = $1`,
-    [albumId],
-  );
+  const { rows } = await pool.query<{ id: string }>('SELECT fid::text AS id FROM album_scope($1)', [albumId]);
   return rows.map((row) => row.id);
 }
 

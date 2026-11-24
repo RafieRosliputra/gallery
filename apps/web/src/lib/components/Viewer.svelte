@@ -146,6 +146,7 @@
       onstep={step}
       {onclose}
       ontap={() => (chrome = !chrome)}
+      originalUrl={(asset) => `${api.originalUrl(asset.id, album.slug)}&view=1`}
       label={`Gambar ${index + 1} daripada ${formatCount(total)}`}
     />
   {:else}

@@ -2,16 +2,18 @@
   import { base } from '$app/paths';
   import { page } from '$app/state';
   import { goto } from '$app/navigation';
-  import type { AdminAlbumDetail, AdminFolderNode, AdminTreeEntry } from '$lib/api/models';
+  import type { AdminAlbumDetail, FolderRule } from '$lib/api/models';
   import type { ClientSummary } from '@gallery/shared';
   import { SLUG_REGEX } from '@gallery/shared';
   import { api, ApiError, isNotFound } from '$lib/api/client';
   import { formatCount } from '$lib/format';
   import Photo from '$lib/components/Photo.svelte';
+  import FolderPicker from '$lib/components/FolderPicker.svelte';
 
   let detail = $state<AdminAlbumDetail | null>(null);
   let clients = $state<ClientSummary[]>([]);
-  let selected = $state<string[]>([]);
+  let rules = $state<FolderRule[]>([]);
+  let stats = $state<{ assetCount: number; folderCount: number } | null>(null);
   let clientId = $state('');
   let title = $state('');
   let slug = $state('');
@@ -25,9 +27,24 @@
   const id = $derived(page.params.id ?? '');
   const isNew = $derived(id === 'new');
 
-  const folderNodes = $derived<AdminFolderNode[]>(detail?.folders ?? []);
-  const selectedNodes = $derived(folderNodes.filter((node) => selected.includes(node.id)));
-  const totalSelected = $derived(selectedNodes.reduce((sum, node) => sum + node.assetCount, 0));
+  const sortedRules = $derived([...rules].sort((a, b) => a.path.localeCompare(b.path)));
+
+  // Live total for the current (unsaved) rules.
+  let statsTimer: ReturnType<typeof setTimeout> | undefined;
+  $effect(() => {
+    const snapshot = rules.map(({ folderId, path, included }) => ({ folderId, path, included }));
+    clearTimeout(statsTimer);
+    if (snapshot.length === 0) {
+      stats = { assetCount: 0, folderCount: 0 };
+      return;
+    }
+    statsTimer = setTimeout(() => {
+      api
+        .previewScope(snapshot)
+        .then((result) => (stats = result))
+        .catch(() => (stats = null));
+    }, 250);
+  });
 
   $effect(() => {
     const albumId = id;
@@ -39,18 +56,11 @@
     error = '';
     try {
       if (albumId === 'new') {
-        const [clientResponse, folderView] = await Promise.all([
-          api.getAdminClients(),
-          api.getAdminFolder()
-        ]);
-        clients = clientResponse;
+        clients = await api.getAdminClients();
         clientId = page.url.searchParams.get('client') ?? clients[0]?.id ?? '';
-        const preselected = page.url.searchParams.get('folders');
-        const nodes: AdminFolderNode[] = folderView.tree.map((node: AdminTreeEntry) => ({
-          ...node,
-          hasChildren: node.folderCount > 0,
-          selected: preselected ? node.path === preselected : false
-        }));
+        const folderId = page.url.searchParams.get('folder');
+        const folderPath = page.url.searchParams.get('path');
+        rules = folderId && folderPath ? [{ folderId, path: folderPath, included: true }] : [];
         detail = {
           album: {
             id: 'new',
@@ -68,12 +78,11 @@
             takenAt: null,
             createdAt: ''
           },
-          folders: nodes,
+          rules,
           previews: [],
           totalAssets: 0,
           clients
         };
-        selected = nodes.filter((node) => node.selected).map((node) => node.id);
       } else {
         const response = await api.getAdminAlbum(albumId);
         detail = response;
@@ -82,7 +91,7 @@
         title = response.album.title;
         slug = response.album.slug;
         allowDownload = response.album.allowDownload;
-        selected = response.folders.filter((node) => node.selected).map((node) => node.id);
+        rules = response.rules;
         slugState = 'free';
       }
     } catch (cause) {
@@ -145,12 +154,6 @@
     }, 300);
   }
 
-  function toggleNode(nodeId: string) {
-    selected = selected.includes(nodeId)
-      ? selected.filter((value) => value !== nodeId)
-      : [...selected, nodeId];
-  }
-
   async function save() {
     if (saving) return;
     error = '';
@@ -160,6 +163,7 @@
       return void (error = 'Nama link mesti 3–60 aksara: huruf kecil, nombor dan sengkang.');
     }
     if (slugState === 'taken') return void (error = 'Nama link ni dah dipakai.');
+    if (!rules.some((rule) => rule.included)) return void (error = 'Tick sekurang-kurangnya satu folder.');
     saving = true;
     try {
       await api.saveAlbum(isNew ? null : id, {
@@ -167,7 +171,7 @@
         title: title.trim(),
         slug: slug.trim(),
         allowDownload,
-        folderIds: selected
+        rules
       });
       await goto(`${base}/admin/clients`);
     } catch (cause) {
@@ -220,35 +224,29 @@
       </label>
 
       <fieldset>
-        <legend>Pilih folder (dari /mnt/a/studio)</legend>
-        {#each folderNodes as node (node.id)}
-          <label class="tree-row" style:padding-left={`${8 + node.depth * 20}px`}>
-            <input
-              type="checkbox"
-              checked={selected.includes(node.id)}
-              onchange={() => toggleNode(node.id)}
-            />
-            <span class="tree-name">{node.name}</span>
-            <span class="tree-count">{node.folderCount === 0 && node.assetCount ? formatCount(node.assetCount) : ''}</span>
-          </label>
-        {/each}
+        <legend>Folder (dari /mnt/a/studio)</legend>
+        <p class="hint">Tick folder = folder tu dan semua folder di dalamnya masuk album. Untick folder di dalam = keluarkan dari album.</p>
+        <FolderPicker bind:rules />
       </fieldset>
     </section>
 
     <aside class="aside">
       <section class="panel">
-        <h2>Folder dalam album ({selectedNodes.length})</h2>
+        <h2>Dalam album</h2>
         <div class="folder-list">
-          {#each selectedNodes as node (node.id)}
-            <div><span>{node.path}</span><span class="count">{formatCount(node.assetCount)}</span></div>
+          {#each sortedRules as rule (rule.folderId)}
+            <div class:excluded={!rule.included}>
+              <span>{rule.included ? '✓' : '✕'} {rule.path === '.' ? '/ (semua)' : rule.path}</span>
+              <span class="count">{rule.included ? 'masuk' : 'keluar'}</span>
+            </div>
           {:else}
-            <p class="empty">Belum pilih folder.</p>
+            <p class="empty">Belum tick folder.</p>
           {/each}
         </div>
-        <div class="total"><span>Jumlah</span><span>{formatCount(totalSelected)} gambar</span></div>
-        {#if detail.album.cameras.length > 1}
-          <span class="camera-note">Subfolder Cam 1 / Cam 2 dikesan → klien nampak tab Semua · Cam 1 · Cam 2</span>
-        {/if}
+        <div class="total">
+          <span>Jumlah</span>
+          <span>{stats ? `${formatCount(stats.assetCount)} gambar · ${formatCount(stats.folderCount)} folder` : '…'}</span>
+        </div>
         <div class="preview">
           {#each Array(4) as _, index (index)}
             {@const asset = detail.previews[index]}
@@ -408,37 +406,6 @@
     padding: 0 6px;
   }
 
-  .tree-row {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    min-height: 40px;
-    font-size: 15px;
-    font-weight: 400;
-    border-radius: 4px;
-  }
-
-  .tree-row:hover {
-    background: #f6f8f8;
-  }
-
-  .tree-row input {
-    width: 18px;
-    height: 18px;
-    accent-color: var(--teal-ink);
-    flex: none;
-  }
-
-  .tree-name {
-    flex: 1;
-  }
-
-  .tree-count {
-    font-size: 13px;
-    color: var(--steel);
-    padding-right: 8px;
-  }
-
   .aside {
     flex: 1 1 320px;
     max-width: 420px;
@@ -475,6 +442,16 @@
     gap: 8px;
   }
 
+  .folder-list .excluded {
+    color: #8a2a24;
+  }
+
+  .hint {
+    margin: 0 0 8px;
+    font-size: 13px;
+    color: var(--steel);
+  }
+
   .folder-list .count {
     color: var(--steel);
     flex: none;
@@ -492,11 +469,6 @@
     justify-content: space-between;
     font-size: 15px;
     font-weight: 600;
-  }
-
-  .camera-note {
-    font-size: 13px;
-    color: var(--teal-ink);
   }
 
   .preview {
