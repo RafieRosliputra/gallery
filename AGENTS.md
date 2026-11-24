@@ -49,10 +49,10 @@ Where code runs:
 - Node 22 + TypeScript (strict), Fastify
 - Postgres 16 + pgvector (pgvector only from phase 4)
 - Job queue: pg-boss (no Redis)
-- Images: sharp (libvips) built WITH libheif for HEIC — verify HEIC decode in the Docker image before anything else
+- Images: sharp 0.35.5 with bundled prebuilt libvips (no system libvips, no libheif). JPEG + WebP only; `sharp.block()` keeps every other loader off
 - Placeholders: thumbhash
 - Web: SvelteKit (static build served by Fastify under `/s`), justified layout + virtual scroll
-- Storage of derivatives: local SSD + Cloudflare R2 (S3 API)
+- Storage of derivatives: local DATA_DIR/thumbs + Cloudflare R2 (S3 API)
 - Deploy: Docker image built by GitHub Actions → GHCR → TrueNAS custom app on `tnas`
 
 ## 4. Repo layout (target)

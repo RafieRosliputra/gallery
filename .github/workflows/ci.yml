@@ -32,6 +32,11 @@ jobs:
           --health-retries 10
     env:
       DATABASE_URL: postgres://gallery:gallery@127.0.0.1:5432/gallery_test
+      R2_ENDPOINT: http://127.0.0.1:9000
+      R2_BUCKET: gallery-thumbs
+      R2_ACCESS_KEY_ID: gallery
+      R2_SECRET_ACCESS_KEY: gallery-secret
+      R2_REGION: us-east-1
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
@@ -45,14 +50,32 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
-      - name: Test (Postgres 16 service)
+      # MinIO's public images are no longer pullable (quay.io 401 / Docker Hub
+      # removed); moto exposes the same S3 API and keeps Cache-Control/Content-Type.
+      - name: Start S3-compatible storage (moto)
+        run: |
+          docker run -d --name s3 -p 9000:5000 motoserver/moto:latest
+          for i in $(seq 1 30); do
+            if curl -sf http://127.0.0.1:9000/ >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          docker logs s3
+          exit 1
+
+      - name: Test (Postgres 16 + S3, R2 path)
         run: npm test
+
+      - name: Perf report (not a gate)
+        run: node scripts/perf.mjs
 
       - name: Build image (linux/amd64)
         run: docker build --platform linux/amd64 -t gallery:ci .
 
-      - name: HEIC check (inside built image)
-        run: docker run --rm gallery:ci node scripts/heic-check.mjs
+      - name: Format check (inside built image)
+        run: >-
+          docker run --rm --network host
+          -e DATABASE_URL=postgres://gallery:gallery@127.0.0.1:5432/gallery_test
+          gallery:ci node scripts/format-check.mjs
 
       - name: Report image size
         run: |

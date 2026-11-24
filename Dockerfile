@@ -1,38 +1,27 @@
 # syntax=docker/dockerfile:1
 # Target platform: linux/amd64 (CI builds with `--platform linux/amd64`).
 #
-# sharp 0.34.5 is pinned because sharp >= 0.35 requires libvips >= 8.18.7 and
-# Alpine 3.24 ships 8.18.2. sharp is compiled against the system libvips:
-# the npm prebuilt has no HEVC, HEIC decode comes from libheif + libde265.
-# libheif-x265 exists so scripts/heic-check can encode a real HEIC in the image.
+# sharp ships prebuilt libvips binaries for both glibc and musl: no system
+# libvips, libheif, libde265 or x265, and no source build. The runtime image is
+# therefore Debian slim with no image libraries installed at all.
+# Only JPEG and WebP loaders are enabled at runtime (apps/server/src/scan/image-policy.ts).
 
-FROM node:22-alpine AS base
+FROM node:22-bookworm-slim AS build
 WORKDIR /app
-RUN apk add --no-cache \
-      vips \
-      vips-cpp \
-      vips-heif \
-      libheif-tools \
-      libheif-libde265 \
-      libheif-x265 \
-      libheif-dav1d
-
-FROM base AS build
-RUN apk add --no-cache vips-dev build-base python3
-ENV SHARP_FORCE_GLOBAL_LIBVIPS=1
 COPY package.json package-lock.json ./
 COPY apps/server/package.json apps/server/
 COPY packages/shared/package.json packages/shared/
-RUN npm ci --build-from-source
+RUN npm ci
 COPY tsconfig.base.json ./
 COPY packages/shared ./packages/shared
 COPY apps/server ./apps/server
 RUN npm run build && npm prune --omit=dev
 
-FROM base AS runtime
+FROM node:22-bookworm-slim AS runtime
 ENV NODE_ENV=production \
     HOST=0.0.0.0 \
     PORT=3000
+WORKDIR /app
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/package.json ./
 COPY --from=build /app/apps/server/package.json ./apps/server/package.json
