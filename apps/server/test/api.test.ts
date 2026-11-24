@@ -176,12 +176,27 @@ describe('public and admin API', () => {
     expect(scoped.headers['content-type']).toBe('image/jpeg');
     expect(scoped.headers['cache-control']).toBe('private, no-store');
 
+    // allow_download=false blocks the original for public links, not the preview.
+    const downloadOff = await app.inject({ method: 'GET', url: `/s/api/o/${ids.b1}?album=album-b` });
+    expect(downloadOff.statusCode).toBe(403);
+    expect(downloadOff.json()).toMatchObject({ error: 'download_disabled' });
+    const preview = await app.inject({ method: 'GET', url: `/s/t/${KEY_C}/1600.webp` });
+    expect(preview.statusCode).toBe(200);
+
     const admin = await app.inject({
       method: 'GET',
       url: `/s/api/o/${ids.b1}`,
       headers: { cookie: ids.adminCookie },
     });
     expect(admin.statusCode).toBe(200);
+
+    // An admin session is always allowed, even on an allow_download=false album.
+    const adminScoped = await app.inject({
+      method: 'GET',
+      url: `/s/api/o/${ids.b1}?album=album-b`,
+      headers: { cookie: ids.adminCookie },
+    });
+    expect(adminScoped.statusCode).toBe(200);
   });
 
   it('streams a ZIP with allow_download enforced, ids and cam filters, no full album leak', async () => {
@@ -318,6 +333,22 @@ describe('public and admin API', () => {
       headers: { cookie: ids.adminCookie },
     });
     expect(removed.statusCode).toBe(204);
+
+    // recursive defaults to true: an album folder covers its Cam N subtree.
+    const defaulted = await app.inject({
+      method: 'POST',
+      url: `/s/api/admin/albums/${albumId}/folders`,
+      headers: { cookie: ids.adminCookie },
+      payload: { folderId: ids.albumA },
+    });
+    expect(defaulted.statusCode).toBe(200);
+    expect(defaulted.json().folder).toMatchObject({ folder_id: ids.albumA, recursive: true });
+
+    const dbDefault = await pool.query<{ recursive: boolean }>(
+      'INSERT INTO album_folder (album_id, folder_id) VALUES ($1, $2) RETURNING recursive',
+      [albumId, ids.lain],
+    );
+    expect(dbDefault.rows[0]?.recursive).toBe(true);
 
     const deletedAlbum = await app.inject({
       method: 'DELETE',

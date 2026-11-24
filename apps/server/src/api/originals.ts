@@ -18,6 +18,7 @@ export interface OriginalDeps {
 }
 
 const SCOPE_DENIED = 'Fail ini tidak dibenarkan untuk pautan ini.';
+const DOWNLOAD_DENIED = 'Muat turun tidak dibenarkan untuk album ini.';
 
 /** Hot cache path: DATA_DIR/hot/<derivKey> (phase 3 writes it). */
 export function hotPath(dataDir: string, derivKey: string): string {
@@ -51,6 +52,9 @@ export function registerOriginalRoutes(app: FastifyInstance, deps: OriginalDeps)
       if (!album) return sendError(reply, 404, 'not_found', NOT_FOUND_MESSAGE);
       const folderIds = await albumFolderIds(deps.pool, album.id);
       if (!folderIds.includes(asset.folder_id)) return sendError(reply, 403, 'forbidden', SCOPE_DENIED);
+      // A public album link is not a download link when allow_download is off.
+      // Derivatives under /s/t stay public; only the original is gated.
+      if (!album.allowDownload) return sendError(reply, 403, 'download_disabled', DOWNLOAD_DENIED);
     }
 
     let file: string | null = null;

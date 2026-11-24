@@ -331,7 +331,7 @@ export function registerAdminRoutes(app: FastifyInstance, deps: AdminApiDeps): v
        ON CONFLICT (album_id, folder_id) DO UPDATE SET recursive = EXCLUDED.recursive
        RETURNING folder_id, recursive,
                  (SELECT path FROM folder WHERE id = $2) AS path`,
-      [id, folderId, recursive ?? false],
+      [id, folderId, recursive ?? true],
     );
     return reply.send({ folder: rows[0] });
   });
