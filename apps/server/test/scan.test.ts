@@ -4,6 +4,7 @@ import path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Pool } from 'pg';
 import { SCAN_LOCK_NAME, scanLibrary } from '../src/scan/scanner.ts';
+import { DEFAULT_SCAN_EXCLUDE } from '../src/scan/excludes.ts';
 import { createPool, resetAndMigrate } from './helpers/db.ts';
 import { writeJpeg } from './helpers/fixtures.ts';
 
@@ -25,6 +26,8 @@ describe('scan exclusions and advisory lock', () => {
     await writeJpeg(path.join(sourceRoot, '@eaDir/b.jpg'), 40, 30);
     await writeJpeg(path.join(sourceRoot, '#recycle/c.jpg'), 40, 30);
     await writeJpeg(path.join(sourceRoot, 'skip/f.jpg'), 40, 30);
+    // Dot-directories are skipped by the walker itself, not by SCAN_EXCLUDE.
+    await writeJpeg(path.join(sourceRoot, '.Trash-1000/g.jpg'), 40, 30);
   });
 
   afterAll(async () => {
@@ -35,7 +38,9 @@ describe('scan exclusions and advisory lock', () => {
 
   it('skips SCAN_EXCLUDE directories at any depth', async () => {
     const stats = await scanLibrary({ pool, sourceRoot, dataDir });
-    // `skip` is not in the default list; @eaDir is ignored by the walker itself.
+    // `skip` is not in the default list; @eaDir and .Trash-1000 are walker-level
+    // ignores (the latter only because dot-directories are always skipped).
+    expect(DEFAULT_SCAN_EXCLUDE).not.toContain('.Trash-1000');
     expect(stats).toMatchObject({ scanned: 3, added: 3, errors: 0 });
     const { rows } = await pool.query<{ path: string }>('SELECT path FROM asset ORDER BY path');
     expect(rows.map((row) => row.path)).toEqual(['deep/ok/e.jpg', 'normal/a.jpg', 'skip/f.jpg']);

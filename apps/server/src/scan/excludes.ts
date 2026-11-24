@@ -3,7 +3,6 @@ export const DEFAULT_SCAN_EXCLUDE = [
   'immich',
   '@eaDir',
   '#recycle',
-  '.Trash-1000',
   '.Recycle.Bin',
 ] as const;
 
