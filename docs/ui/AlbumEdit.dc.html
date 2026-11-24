@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="ms">
+<head>
+<meta charset="utf-8">
+<title>Edit album</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#f5f7f7}
+a{color:#1f6f68;text-decoration:none}a:hover{color:#20272b}
+</style>
+</helmet>
+<div style="display: flex; flex-wrap: wrap; min-height: 100vh; font-family: Archivo, system-ui, sans-serif; color: #20272b; background: #f5f7f7">
+  <nav aria-label="Menu admin" style="flex: 1 1 220px; max-width: 100%; background: #20272b; padding: 24px 16px; box-sizing: border-box; display: flex; flex-direction: column; gap: 28px">
+    <img src="/_blob/74c451021d4a35d09593e5b5a7b7fc56" alt="JohorStudio.com" style="width: 150px; height: auto; margin-left: 8px">
+    <div style="display: flex; flex-direction: column; gap: 4px; font-size: 15px">
+      <a href="Main.dc.html" style="padding: 12px; border-radius: 6px; color: #e2e8e9">Timeline</a>
+      <a href="Albums.dc.html" style="padding: 12px; border-radius: 6px; background: #1f6f68; color: #ffffff; font-weight: 600">Album</a>
+      <a href="Links.dc.html" style="padding: 12px; border-radius: 6px; color: #e2e8e9">Klien</a>
+      <a href="Status.dc.html" style="padding: 12px; border-radius: 6px; color: #e2e8e9">Status sistem</a>
+    </div>
+  </nav>
+
+  <main style="flex: 999 1 560px; min-width: 0; padding: 24px 32px 40px; box-sizing: border-box; display: flex; flex-direction: column; gap: 24px">
+    <header style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px">
+      <div style="display: flex; flex-direction: column; gap: 4px">
+        <a href="Albums.dc.html" style="font-size: 14px">← Album</a>
+        <h1 style="margin: 0; font-size: 30px; font-weight: 700; font-stretch: 85%">Edit album</h1>
+      </div>
+      <div style="display: flex; gap: 10px">
+        <a href="Albums.dc.html" style="height: 44px; padding: 0 18px; border-radius: 6px; border: 1px solid #c4ccce; color: #20272b; font-size: 15px; display: flex; align-items: center; box-sizing: border-box">Batal</a>
+        <a href="Links.dc.html" style="height: 44px; padding: 0 18px; border-radius: 6px; background: #1f6f68; color: #ffffff; font-size: 15px; font-weight: 600; display: flex; align-items: center">Simpan</a>
+      </div>
+    </header>
+
+    <div style="display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start">
+      <section style="flex: 999 1 420px; min-width: 0; display: flex; flex-direction: column; gap: 20px">
+        <label style="display: flex; flex-direction: column; gap: 6px; font-size: 14px; font-weight: 600">Klien
+          <select style="height: 46px; border: 1px solid #c4ccce; border-radius: 6px; padding: 0 12px; font: inherit; font-weight: 400; font-size: 16px; background: #ffffff; color: #20272b">
+            <option>Aina &amp; Hafiz (/s/aina-hafiz)</option>
+            <option>Tadika Mawar (/s/tadika-mawar)</option>
+            <option>+ Klien baru</option>
+          </select>
+        </label>
+        <label style="display: flex; flex-direction: column; gap: 6px; font-size: 14px; font-weight: 600">Nama album
+          <input type="text" value="Sanding" style="height: 46px; border: 1px solid #c4ccce; border-radius: 6px; padding: 0 14px; font: inherit; font-weight: 400; font-size: 16px; background: #ffffff">
+        </label>
+
+        <fieldset style="margin: 0; border: 1px solid #e2e8e9; border-radius: 6px; background: #ffffff; padding: 16px; display: flex; flex-direction: column; gap: 4px">
+          <legend style="font-size: 14px; font-weight: 600; padding: 0 6px">Pilih folder (dari /mnt/a/studio)</legend>
+          <sc-for list="{{tree}}" as="f" hint-placeholder-count="8">
+            <label style="display: flex; align-items: center; gap: 10px; min-height: 40px; padding-left: {{f.pad}}px; font-size: 15px; border-radius: 4px">
+              <input type="checkbox" checked="{{f.on}}" style="width: 18px; height: 18px; accent-color: #1f6f68">
+              <span style="flex: 1">{{f.name}}</span>
+              <span style="font-size: 13px; color: #4f5b61; padding-right: 8px">{{f.count}}</span>
+            </label>
+          </sc-for>
+        </fieldset>
+      </section>
+
+      <aside style="flex: 1 1 320px; max-width: 420px; display: flex; flex-direction: column; gap: 16px">
+        <div style="background: #ffffff; border: 1px solid #e2e8e9; border-radius: 6px; padding: 16px; display: flex; flex-direction: column; gap: 12px">
+          <h2 style="margin: 0; font-size: 16px; font-weight: 600">Folder dalam album (3)</h2>
+          <div style="display: flex; flex-direction: column; gap: 8px; font-size: 14px">
+            <div style="display: flex; justify-content: space-between; gap: 8px"><span>CLIENT / Kahwin Aina &amp; Hafiz</span><span style="color: #4f5b61">864</span></div>
+            <div style="display: flex; justify-content: space-between; gap: 8px"><span>BTS / Aina Hafiz BTS</span><span style="color: #4f5b61">158</span></div>
+            <div style="display: flex; justify-content: space-between; gap: 8px"><span>PRINT / Aina Hafiz cetak</span><span style="color: #4f5b61">80</span></div>
+          </div>
+          <div style="border-top: 1px solid #e2e8e9; padding-top: 10px; display: flex; justify-content: space-between; font-size: 15px; font-weight: 600"><span>Jumlah</span><span>1,102 gambar</span></div>
+          <span style="font-size: 13px; color: #1f6f68">Subfolder Cam 1 / Cam 2 dikesan → klien nampak tab Semua · Cam 1 · Cam 2</span>
+          <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 3px">
+            <div style="height: 60px; background: #a99c8f"></div><div style="height: 60px; background: #e0d6c8"></div><div style="height: 60px; background: #6f7b80"></div><div style="height: 60px; background: #c4ccc9"></div>
+          </div>
+        </div>
+
+        <div style="background: #ffffff; border: 1px solid #e2e8e9; border-radius: 6px; padding: 16px; display: flex; flex-direction: column; gap: 14px">
+          <h2 style="margin: 0; font-size: 16px; font-weight: 600">Link album (untuk customer klien)</h2>
+          <label style="display: flex; flex-direction: column; gap: 6px; font-size: 14px; font-weight: 600">Nama link
+            <span style="display: flex; align-items: center; border: 1px solid #c4ccce; border-radius: 6px; height: 46px; overflow: hidden; font-weight: 400">
+              <span style="padding: 0 10px; background: #e2e8e9; height: 100%; display: flex; align-items: center; font-size: 14px; color: #4f5b61">johorstudio.com/s/</span>
+              <input type="text" value="aina-hafiz-sanding" style="border: 0; outline: 0; flex: 1; min-width: 0; padding: 0 10px; font: inherit; font-size: 15px">
+            </span>
+          </label>
+          <span style="font-size: 13px; color: #1f6f68">✓ Nama ni belum dipakai</span>
+          <label style="display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 15px; min-height: 44px">Benarkan klien download
+            <input type="checkbox" checked style="width: 20px; height: 20px; accent-color: #1f6f68">
+          </label>
+        </div>
+      </aside>
+    </div>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":800}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const F = (name, count, pad, on) => ({ name, count, pad, on });
+    return {
+      tree: [
+        F('BTS', '', 0, false),
+        F('Aina Hafiz BTS', '158', 28, true),
+        F('CLIENT', '', 0, false),
+        F('Kahwin Aina & Hafiz', '864', 28, true),
+        F('Konvo Tadika Mawar 2026', '1,284', 28, false),
+        F('PORTFOLIO', '', 0, false),
+        F('PRINT', '', 0, false),
+        F('Aina Hafiz cetak', '80', 28, true),
+        F('Raya', '', 0, false)
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

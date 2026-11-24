@@ -14,5 +14,10 @@ coverage/
 .docker/
 .buildx
 
+# web test artifacts (local)
+apps/web/.playwright-browsers/
+apps/web/test-results/
+apps/web/playwright-report/
+
 # Cloudflare local state
 .wrangler/

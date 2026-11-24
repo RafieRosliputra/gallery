@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="ms">
+<head>
+<meta charset="utf-8">
+<title>Senarai album</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#f5f7f7}
+a{color:#1f6f68;text-decoration:none}a:hover{color:#20272b}
+</style>
+</helmet>
+<div style="display: flex; flex-wrap: wrap; min-height: 100vh; font-family: Archivo, system-ui, sans-serif; color: #20272b; background: #f5f7f7">
+  <nav aria-label="Menu admin" style="flex: 1 1 220px; max-width: 100%; background: #20272b; padding: 24px 16px; box-sizing: border-box; display: flex; flex-direction: column; gap: 28px">
+    <img src="/_blob/74c451021d4a35d09593e5b5a7b7fc56" alt="JohorStudio.com" style="width: 150px; height: auto; margin-left: 8px">
+    <div style="display: flex; flex-direction: column; gap: 4px; font-size: 15px">
+      <a href="Main.dc.html" style="padding: 12px; border-radius: 6px; color: #e2e8e9">Timeline</a>
+      <a href="Albums.dc.html" style="padding: 12px; border-radius: 6px; background: #1f6f68; color: #ffffff; font-weight: 600">Album</a>
+      <a href="Links.dc.html" style="padding: 12px; border-radius: 6px; color: #e2e8e9">Klien</a>
+      <a href="Status.dc.html" style="padding: 12px; border-radius: 6px; color: #e2e8e9">Status sistem</a>
+    </div>
+  </nav>
+
+  <main style="flex: 999 1 560px; min-width: 0; padding: 24px 32px 40px; box-sizing: border-box; display: flex; flex-direction: column; gap: 24px">
+    <header style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px">
+      <div style="display: flex; flex-direction: column; gap: 4px">
+        <h1 style="margin: 0; font-size: 30px; font-weight: 700; font-stretch: 85%">Album</h1>
+        <span style="font-size: 14px; color: #4f5b61">Satu album boleh ambil gambar dari banyak folder. Fail asal tak dipindah.</span>
+      </div>
+      <a href="AlbumEdit.dc.html" style="height: 44px; padding: 0 18px; border-radius: 6px; background: #1f6f68; color: #ffffff; font-size: 15px; font-weight: 600; display: flex; align-items: center">+ Album baru</a>
+    </header>
+
+    <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 20px">
+      <sc-for list="{{albums}}" as="a" hint-placeholder-count="6">
+        <a href="AlbumEdit.dc.html" style="display: flex; flex-direction: column; background: #ffffff; border: 1px solid #e2e8e9; border-radius: 6px; overflow: hidden; color: #20272b">
+          <div style="display: flex; gap: 3px; height: 170px">
+            <div style="flex: 2; background: {{a.c1}}"></div>
+            <div style="flex: 1; display: flex; flex-direction: column; gap: 3px">
+              <div style="flex: 1; background: {{a.c2}}"></div>
+              <div style="flex: 1; background: {{a.c3}}"></div>
+            </div>
+          </div>
+          <div style="padding: 14px; display: flex; flex-direction: column; gap: 8px">
+            <span style="font-size: 16px; font-weight: 600">{{a.title}}</span>
+            <span style="font-size: 13px; color: #4f5b61">{{a.meta}}</span>
+            <sc-if value="{{a.hasLink}}" hint-placeholder-val="{{ true }}">
+              <span style="align-self: flex-start; font-size: 13px; font-weight: 600; color: #1f6f68; background: #e4f4f2; padding: 4px 8px; border-radius: 4px">{{a.link}}</span>
+            </sc-if>
+            <sc-if value="{{a.noLink}}" hint-placeholder-val="{{ false }}">
+              <span style="align-self: flex-start; font-size: 13px; color: #4f5b61; background: #e2e8e9; padding: 4px 8px; border-radius: 4px">Belum ada link</span>
+            </sc-if>
+          </div>
+        </a>
+      </sc-for>
+    </div>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":820}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const L = (t, m, link, c1, c2, c3) => ({ title: t, meta: m, link, hasLink: !!link, noLink: !link, c1, c2, c3 });
+    return {
+      albums: [
+        L('Konvo Tadika Mawar 2026', '2 folder · 1,284 gambar', '/s/tadika-mawar-2026', '#c9bfb4', '#8f9aa0', '#b7c4bf'),
+        L('Kahwin Aina & Hafiz', '3 folder · 1,102 gambar', '/s/aina-hafiz', '#a99c8f', '#e0d6c8', '#6f7b80'),
+        L('Konvo Tadika Seri Kasih', '1 folder · 742 gambar', '/s/seri-kasih', '#9fb0a8', '#cfd8d6', '#b9aea2'),
+        L('Annual Dinner Syarikat ABC', '1 folder · 290 gambar', null, '#7d8a8f', '#c9bfb4', '#a99c8f'),
+        L('Portfolio fesyen 2026', '4 folder · 506 gambar', '/s/portfolio', '#d8cfc4', '#6f7b80', '#c4ccc9'),
+        L('Raya 2026', '2 folder · 880 gambar', null, '#b7c4bf', '#a99c8f', '#8f9aa0')
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>
