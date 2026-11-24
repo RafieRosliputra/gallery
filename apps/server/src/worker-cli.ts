@@ -1,5 +1,6 @@
 import { Pool } from 'pg';
 import { loadConfig } from './config.js';
+import { startReconciler } from './jobs/reconcile.js';
 import { startWorker } from './jobs/worker.js';
 import { createUploader } from './r2/uploader.js';
 
@@ -30,8 +31,12 @@ console.info(
     `dataDir=${config.dataDir}`,
 );
 
+// Re-feeds work lost across restarts (assets still without thumbnails / R2 copies).
+const stopReconciler = startReconciler({ pool, boss, r2Enabled: Boolean(uploader), intervalSeconds: 60 });
+
 async function shutdown(signal: string): Promise<void> {
   console.info(`worker: ${signal}, draining`);
+  stopReconciler();
   await boss.stop({ graceful: true, timeout: 30_000 });
   await pool.end();
 }

@@ -48,6 +48,7 @@ const app = buildApp({
   thumbBase: config.thumbBase,
   timezone: config.timezone,
   r2Enabled: config.r2Mode !== 'off',
+  excludeDirectories: config.scanExclude,
   ...(config.originSecret ? { originSecret: config.originSecret } : {}),
   ...(config.sourceRoot ? { sourceRoot: config.sourceRoot } : {}),
   ...(scan ? { triggerScan: () => scan.trigger() } : {}),

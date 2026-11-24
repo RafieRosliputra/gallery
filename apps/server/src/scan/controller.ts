@@ -39,6 +39,10 @@ export function createScanController(options: ScanControllerOptions): ScanContro
         excludeDirectories: options.excludeDirectories,
         onAssetsChanged: async (assetIds) => {
           await enqueueThumbnails(options.boss, assetIds);
+          // Tell the reconciler these are already queued.
+          await options.pool.query('UPDATE asset SET thumb_queued_at = now() WHERE id = ANY($1::bigint[])', [
+            assetIds,
+          ]);
         },
         ...(options.logger ? { logger: options.logger } : {}),
       });

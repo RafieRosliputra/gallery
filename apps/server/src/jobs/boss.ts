@@ -13,21 +13,28 @@ export function createBoss(databaseUrl: string): PgBoss {
   return new PgBoss({ connectionString: databaseUrl });
 }
 
+// Large originals on a slow HDD can take minutes; expiry must not kill a healthy job.
+const THUMB_QUEUE = {
+  retryLimit: 3,
+  retryDelay: 30,
+  retryBackoff: true,
+  expireInSeconds: 1800,
+  retentionSeconds: 7 * 24 * 60 * 60,
+};
+const R2_QUEUE = {
+  retryLimit: 5,
+  retryDelay: 60,
+  retryBackoff: true,
+  expireInSeconds: 600,
+  retentionSeconds: 7 * 24 * 60 * 60,
+};
+
 export async function ensureQueues(boss: PgBoss): Promise<void> {
-  await boss.createQueue(QUEUE_THUMB, {
-    retryLimit: 3,
-    retryDelay: 30,
-    retryBackoff: true,
-    expireInSeconds: 600,
-    retentionSeconds: 7 * 24 * 60 * 60,
-  });
-  await boss.createQueue(QUEUE_R2, {
-    retryLimit: 5,
-    retryDelay: 60,
-    retryBackoff: true,
-    expireInSeconds: 300,
-    retentionSeconds: 7 * 24 * 60 * 60,
-  });
+  // createQueue is a no-op for an existing queue, so push the current settings too.
+  await boss.createQueue(QUEUE_THUMB, THUMB_QUEUE);
+  await boss.updateQueue(QUEUE_THUMB, THUMB_QUEUE);
+  await boss.createQueue(QUEUE_R2, R2_QUEUE);
+  await boss.updateQueue(QUEUE_R2, R2_QUEUE);
 }
 
 const INSERT_BATCH_SIZE = 500;
@@ -48,4 +55,18 @@ export async function enqueueThumbnails(boss: PgBoss, assetIds: string[]): Promi
 
 export async function enqueueR2Upload(boss: PgBoss, assetId: string): Promise<void> {
   await boss.send(QUEUE_R2, { assetId }, { priority: LOW_PRIORITY });
+}
+
+export async function enqueueR2Uploads(boss: PgBoss, assetIds: string[]): Promise<number> {
+  let sent = 0;
+  for (let offset = 0; offset < assetIds.length; offset += INSERT_BATCH_SIZE) {
+    const batch = assetIds.slice(offset, offset + INSERT_BATCH_SIZE);
+    const ids = await boss.insert(
+      QUEUE_R2,
+      batch.map((assetId) => ({ data: { assetId }, priority: LOW_PRIORITY })),
+      { returnId: true },
+    );
+    sent += ids?.length ?? 0;
+  }
+  return sent;
 }

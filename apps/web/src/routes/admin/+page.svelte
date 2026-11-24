@@ -2,7 +2,7 @@
   import { onMount } from 'svelte';
   import type { AdminBucketsResponse, AdminStatusView, Asset, BucketRef } from '$lib/api/models';
   import { api } from '$lib/api/client';
-  import { formatClock, formatCount } from '$lib/format';
+  import { formatCount, formatLocalClock } from '$lib/format';
   import Icon from '$lib/components/Icon.svelte';
   import JustifiedGrid from '$lib/components/JustifiedGrid.svelte';
 
@@ -94,7 +94,7 @@
 <div class="meta">
   <span class="count"><i aria-hidden="true"></i>{formatCount(status?.assets)} gambar</span>
   <span>Thumbnail dalam giliran: {formatCount(status?.pendingThumbs)}</span>
-  <span>Imbas terakhir: {status?.lastScanAt ? formatClock(status.lastScanAt) : '—'}</span>
+  <span>Imbas terakhir: {status?.lastScanAt ? formatLocalClock(status.lastScanAt) : '—'}</span>
 </div>
 
 {#if notice}
