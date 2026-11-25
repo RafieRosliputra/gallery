@@ -86,6 +86,13 @@
     if (next) onchange(next.id);
   }
 
+  async function copyName() {
+    if (!active?.name) return;
+    const ok = await copyText(active.name);
+    toast = ok ? `Copied ${active.name}` : 'Could not copy';
+    window.setTimeout(() => (toast = ''), 2500);
+  }
+
   async function share() {
     if (!active) return;
     if (navigator.share) {
@@ -116,6 +123,9 @@
       <Icon name="back" size={22} strokeWidth={2} />
     </button>
     <div class="actions">
+      {#if active?.name}
+        <button type="button" class="filename" title="Copy file name" onclick={copyName}>{active.name}</button>
+      {/if}
       <IconButton label="Share photo" name="share" size={21} hit={44} onclick={share} />
       <button
         type="button"
@@ -234,6 +244,28 @@
   .actions {
     display: flex;
     align-items: center;
+    min-width: 0;
+  }
+
+  .filename {
+    max-width: 40vw;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    height: 32px;
+    margin-right: 6px;
+    padding: 0 10px;
+    border: 0;
+    border-radius: 16px;
+    background: rgb(255 255 255 / 0.12);
+    color: #fff;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: copy;
+  }
+
+  .filename:hover {
+    background: rgb(255 255 255 / 0.22);
   }
 
   .missing {

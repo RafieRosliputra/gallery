@@ -82,6 +82,8 @@ export interface AssetItem extends DerivativeUrls {
   mime: string;
   /** Only present on public endpoints that know the album scope. */
   original?: string;
+  /** File name with extension (no folders), e.g. `DSC01234.jpg`. */
+  name?: string;
 }
 
 export interface BucketSummary {

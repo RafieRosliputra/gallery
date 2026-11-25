@@ -108,7 +108,8 @@ function toAsset(wire: WireAsset): Asset {
     mime: wire.mime,
     takenAt: wire.takenAt,
     camera: wire.camera,
-    ...(wire.original ? { original: wire.original } : {})
+    ...(wire.original ? { original: wire.original } : {}),
+    ...(wire.name ? { name: wire.name } : {})
   };
 }
 

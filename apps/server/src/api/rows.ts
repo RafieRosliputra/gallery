@@ -1,3 +1,4 @@
+import path from 'node:path';
 import type { AssetItem } from '@gallery/shared';
 import { originalUrl, thumbUrl } from './urls.js';
 
@@ -11,6 +12,8 @@ export interface AssetRow {
   camera: string | null;
   thumbhash: string | null;
   mime: string;
+  /** Source path; only its file name is exposed. */
+  path?: string;
 }
 
 export function toAssetItem(row: AssetRow, thumbBase: string, albumSlug?: string): AssetItem {
@@ -26,5 +29,6 @@ export function toAssetItem(row: AssetRow, thumbBase: string, albumSlug?: string
     preview: thumbUrl(thumbBase, row.deriv_key, '1600'),
   };
   if (albumSlug) item.original = originalUrl(row.id, albumSlug);
+  if (row.path) item.name = path.posix.basename(row.path);
   return item;
 }

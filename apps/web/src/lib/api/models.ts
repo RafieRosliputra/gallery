@@ -21,6 +21,8 @@ export interface Asset {
   takenAt: string | null;
   camera: string | null;
   original?: string;
+  /** File name with extension. */
+  name?: string;
 }
 
 export interface AlbumCard {

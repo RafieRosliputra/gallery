@@ -5,6 +5,7 @@
   import type { Asset } from '$lib/api/models';
   import { api } from '$lib/api/client';
   import { formatClock, formatDayLabel } from '$lib/format';
+  import { copyText } from '$lib/clipboard';
   import Icon from './Icon.svelte';
   import PhotoStage from './PhotoStage.svelte';
 
@@ -20,6 +21,7 @@
   const index = $derived(items.findIndex((item) => item.id === id));
   const current = $derived(index >= 0 ? items[index] : undefined);
   let chrome = $state(true);
+  let copied = $state('');
   let pushed = $state(false);
   let idle: number | undefined;
 
@@ -41,6 +43,12 @@
   function close(): void {
     if (page.state.adminViewer) history.back();
     else onclose();
+  }
+
+  async function copyName(): Promise<void> {
+    if (!current?.name) return;
+    copied = (await copyText(current.name)) ? 'Copied' : 'Copy failed';
+    window.setTimeout(() => (copied = ''), 2000);
   }
 
   function step(delta: number): void {
@@ -93,6 +101,9 @@
         {/if}
         <span class="meta count">{index + 1} / {items.length}{current.camera ? ` · ${current.camera}` : ''}</span>
       </div>
+      {#if current.name}
+        <button type="button" class="filename" title="Copy file name" onclick={copyName}>{copied || current.name}</button>
+      {/if}
       <a class="action" href={api.originalUrl(current.id)} download aria-label="Download original">
         <Icon name="download" size={22} />
       </a>
@@ -154,6 +165,21 @@
     align-items: center;
     justify-content: center;
     cursor: pointer;
+  }
+  .filename {
+    max-width: 40vw;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    height: 32px;
+    padding: 0 10px;
+    border: 0;
+    border-radius: 16px;
+    background: rgb(255 255 255 / 0.12);
+    color: #fff;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: copy;
   }
   .action:hover {
     background: rgb(255 255 255 / 0.12);

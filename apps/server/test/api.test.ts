@@ -576,6 +576,14 @@ describe('public and admin API', () => {
     expect(tooLong.statusCode).toBe(400);
   });
 
+  it('exposes only the file name of an asset', async () => {
+    const lookup = await app.inject({ method: 'GET', url: `/s/api/asset/${ids.a1}?album=${ids.albumASlug}` });
+    expect(lookup.json().asset.name).toBe('a1.jpg');
+    expect(JSON.stringify(lookup.json())).not.toContain('Klien Demo/');
+    const bucket = await app.inject({ method: 'GET', url: `/s/api/bucket/2024-05?album=${ids.albumASlug}` });
+    expect(bucket.json().assets.map((asset: { name: string }) => asset.name).sort()).toEqual(['a1.jpg', 'a2.jpg']);
+  });
+
   it('returns lazy folder children with counts', async () => {
     const root = await app.inject({
       method: 'GET',
