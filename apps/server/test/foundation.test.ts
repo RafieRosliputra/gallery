@@ -19,6 +19,7 @@ describe('db/migrations/001_init.sql', () => {
       '006_album_rules.sql',
       '007_folder_moves.sql',
       '008_descriptions.sql',
+      '009_album_sort.sql',
     ]);
     pool = createPool();
   });
@@ -52,7 +53,7 @@ describe('db/migrations/001_init.sql', () => {
   it('is idempotent on a second run', async () => {
     const result = await runMigrations({ databaseUrl: requireTestDatabaseUrl() });
     expect(result.applied).toEqual([]);
-    expect(result.alreadyApplied).toBe(8);
+    expect(result.alreadyApplied).toBe(9);
   });
 
   it('rejects slugs outside [a-z0-9-]{3,60}', async () => {

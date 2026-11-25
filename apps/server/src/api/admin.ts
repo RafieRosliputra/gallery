@@ -53,6 +53,7 @@ function albumJson(row: AlbumAdminRow, thumbBase: string): Record<string, unknow
     slug: row.slug,
     allowDownload: row.allow_download,
     description: row.description,
+    sort: row.sort,
     clientSlug: row.client_slug,
     clientName: row.client_name,
     folderCount: row.folder_count,
@@ -330,7 +331,7 @@ export function registerAdminRoutes(app: FastifyInstance, deps: AdminApiDeps): v
          WHERE rn <= 3
          GROUP BY album_id
        )
-       SELECT a.id, a.client_id, a.title, a.slug, a.allow_download, a.description,
+       SELECT a.id, a.client_id, a.title, a.slug, a.allow_download, a.description, a.sort,
               c.slug AS client_slug, c.name AS client_name,
               (SELECT count(*) FROM album_folder af WHERE af.album_id = a.id AND af.included)::int AS folder_count,
               COALESCE(st.asset_count, 0) AS asset_count,
@@ -371,7 +372,7 @@ export function registerAdminRoutes(app: FastifyInstance, deps: AdminApiDeps): v
       const { rows } = await deps.pool.query<AlbumAdminRow>(
         `INSERT INTO album (client_id, title, slug, allow_download)
          VALUES ($1, $2, $3, COALESCE($4, true))
-         RETURNING id, client_id, title, slug, allow_download, description,
+         RETURNING id, client_id, title, slug, allow_download, description, sort,
                    (SELECT slug FROM client WHERE id = $1) AS client_slug,
                    (SELECT name FROM client WHERE id = $1) AS client_name,
                    0::int AS folder_count,
@@ -405,7 +406,12 @@ export function registerAdminRoutes(app: FastifyInstance, deps: AdminApiDeps): v
     if (description !== undefined && !validDescription(description)) {
       return sendError(reply, 400, 'bad_description', DESCRIPTION_MESSAGE);
     }
+    const sort = body['sort'];
+    if (sort !== undefined && sort !== 'name' && sort !== 'taken' && sort !== 'taken_desc') {
+      return sendError(reply, 400, 'bad_sort', 'sort must be name, taken or taken_desc.');
+    }
     if (
+      sort === undefined &&
       clientIdRaw === undefined &&
       title === undefined &&
       slug === undefined &&
@@ -437,9 +443,10 @@ export function registerAdminRoutes(app: FastifyInstance, deps: AdminApiDeps): v
                           title = COALESCE($3, title),
                           slug = COALESCE($4, slug),
                           allow_download = COALESCE($5, allow_download),
-                          description = COALESCE($6, description)
+                          description = COALESCE($6, description),
+                          sort = COALESCE($7, sort)
          WHERE id = $1
-         RETURNING id, client_id, title, slug, allow_download, description,
+         RETURNING id, client_id, title, slug, allow_download, description, sort,
                    (SELECT slug FROM client WHERE id = album.client_id) AS client_slug,
                    (SELECT name FROM client WHERE id = album.client_id) AS client_name,
                    (SELECT count(*) FROM album_folder af WHERE af.album_id = album.id AND af.included)::int AS folder_count,
@@ -453,6 +460,7 @@ export function registerAdminRoutes(app: FastifyInstance, deps: AdminApiDeps): v
           slug === undefined ? null : slug,
           allowDownload === undefined ? null : allowDownload,
           description === undefined ? null : (description as string).trim(),
+          sort ?? null,
         ],
       );
       const row = rows[0];
@@ -757,6 +765,7 @@ interface AlbumAdminRow {
   slug: string;
   allow_download: boolean;
   description: string;
+  sort: string;
   client_slug: string;
   client_name: string;
   folder_count: number;

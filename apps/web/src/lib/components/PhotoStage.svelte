@@ -22,7 +22,8 @@
   }: {
     items: Asset[];
     index: number;
-    onstep: (delta: number) => void;
+    /** Called after a slide with the step and the id of the photo now shown. */
+    onstep: (delta: number, id: string) => void;
     onclose: () => void;
     ontap?: () => void;
     /** Full-resolution URL used once the photo is zoomed in. */
@@ -45,10 +46,18 @@
   let zoomAnim = $state(false);
   let hiRes = $state<Record<string, 'loading' | 'ready'>>({});
 
-  const slides = $derived([-1, 0, 1].map((offset) => ({ offset, asset: items[index + offset] })));
-  const current = $derived(items[index]);
-  const hasPrev = $derived(index > 0);
-  const hasNext = $derived(index >= 0 && index < items.length - 1);
+  // The photo on screen. It moves on as soon as a slide ends; the parent's
+  // `index` catches up after its (async) URL update, so the stage never jumps
+  // back to the previous photo in between.
+  let at = $state(0);
+  $effect.pre(() => {
+    at = index;
+  });
+
+  const slides = $derived([-1, 0, 1].map((offset) => ({ offset, asset: items[at + offset] })));
+  const current = $derived(items[at]);
+  const hasPrev = $derived(at > 0);
+  const hasNext = $derived(at >= 0 && at < items.length - 1);
   const dismiss = $derived(Math.min(1, Math.max(0, dy) / 300));
   const zoomed = $derived(z > 1.001);
 
@@ -113,7 +122,7 @@
 
   // A new photo always starts un-zoomed.
   $effect(() => {
-    void index;
+    void at;
     z = 1;
     zx = 0;
     zy = 0;
@@ -132,9 +141,11 @@
     animating = true;
     dx = -delta * stageW;
     window.setTimeout(() => {
+      at += delta;
       animating = false;
       dx = 0;
-      onstep(delta);
+      const shown = items[at];
+      if (shown) onstep(delta, shown.id);
     }, SLIDE_MS);
   }
 
@@ -346,7 +357,7 @@
   // ---- preload neighbours ----------------------------------------------------
   $effect(() => {
     for (const offset of [-2, -1, 1, 2]) {
-      const neighbour = items[index + offset];
+      const neighbour = items[at + offset];
       if (neighbour) {
         const image = new Image();
         image.src = neighbour.previewUrl;

@@ -2,8 +2,12 @@ import type { Pool } from 'pg';
 import type { AssetItem } from '@gallery/shared';
 import { toAssetItem, type AssetRow } from './rows.js';
 
+/** Photo order: newest first (timeline), oldest first, or file name A→Z. */
+export type AssetOrder = 'taken_desc' | 'taken' | 'name';
+
 export interface AssetCursor {
-  takenAt: Date;
+  takenAt?: Date;
+  path?: string;
   id: string;
 }
 
@@ -21,6 +25,8 @@ export interface AssetPageOptions {
   albumSlug?: string;
   /** Optional explicit asset ids (ZIP favourites); capped by the caller. */
   ids?: string[];
+  /** Defaults to taken_desc. */
+  order?: AssetOrder;
 }
 
 export interface AssetPage {
@@ -28,12 +34,19 @@ export interface AssetPage {
   nextCursor: string | null;
 }
 
-export function encodeAssetCursor(row: { taken_at: Date | string | null; id: string }): string | null {
-  if (!row.taken_at) return null;
-  return Buffer.from(
-    JSON.stringify({ t: new Date(row.taken_at).toISOString(), i: row.id }),
-    'utf8',
-  ).toString('base64url');
+export function encodeAssetCursor(
+  row: { taken_at: Date | string | null; id: string; path?: string },
+  order: AssetOrder = 'taken_desc',
+): string | null {
+  const payload =
+    order === 'name'
+      ? row.path === undefined
+        ? null
+        : { p: row.path, i: row.id }
+      : row.taken_at
+        ? { t: new Date(row.taken_at).toISOString(), i: row.id }
+        : null;
+  return payload ? Buffer.from(JSON.stringify(payload), 'utf8').toString('base64url') : null;
 }
 
 export function decodeAssetCursor(raw: string): AssetCursor | null {
@@ -41,9 +54,12 @@ export function decodeAssetCursor(raw: string): AssetCursor | null {
     const parsed = JSON.parse(Buffer.from(raw, 'base64url').toString('utf8')) as unknown;
     if (typeof parsed !== 'object' || parsed === null) return null;
     const record = parsed as Record<string, unknown>;
-    const t = record['t'];
     const i = record['i'];
-    if (typeof t !== 'string' || typeof i !== 'string' || !/^\d{1,19}$/.test(i)) return null;
+    if (typeof i !== 'string' || !/^\d{1,19}$/.test(i)) return null;
+    const t = record['t'];
+    const p = record['p'];
+    if (typeof p === 'string' && p.length > 0 && p.length < 4096) return { path: p, id: i };
+    if (typeof t !== 'string') return null;
     const takenAt = new Date(t);
     if (Number.isNaN(takenAt.getTime())) return null;
     return { takenAt, id: i };
@@ -57,7 +73,7 @@ function folderKey(key: string): string | null {
   return match?.[1] ?? null;
 }
 
-/** Keyset page ordered by taken_at DESC, id DESC. Never OFFSET. */
+/** Keyset page in the requested order (default taken_at DESC, id DESC). Never OFFSET. */
 export async function fetchAssetPage(options: AssetPageOptions): Promise<AssetPage> {
   const values: unknown[] = [];
   const where: string[] = ['deleted_at IS NULL', 'taken_at IS NOT NULL'];
@@ -87,22 +103,35 @@ export async function fetchAssetPage(options: AssetPageOptions): Promise<AssetPa
     where.push(`to_char(taken_at AT TIME ZONE $${timezoneIndex}, 'YYYY-MM') = $${values.length}`);
   }
 
+  const order: AssetOrder = options.order ?? 'taken_desc';
   if (options.cursor) {
-    values.push(options.cursor.takenAt);
-    const takenIndex = values.length;
-    values.push(options.cursor.id);
-    const idIndex = values.length;
-    where.push(`(taken_at < $${takenIndex} OR (taken_at = $${takenIndex} AND id < $${idIndex}::bigint))`);
+    if (order === 'name') {
+      if (options.cursor.path === undefined) return { assets: [], nextCursor: null };
+      values.push(options.cursor.path);
+      const pathIndex = values.length;
+      values.push(options.cursor.id);
+      where.push(`(path > $${pathIndex} OR (path = $${pathIndex} AND id > $${values.length}::bigint))`);
+    } else {
+      if (!options.cursor.takenAt) return { assets: [], nextCursor: null };
+      values.push(options.cursor.takenAt);
+      const takenIndex = values.length;
+      values.push(options.cursor.id);
+      const idIndex = values.length;
+      const op = order === 'taken' ? '>' : '<';
+      where.push(`(taken_at ${op} $${takenIndex} OR (taken_at = $${takenIndex} AND id ${op} $${idIndex}::bigint))`);
+    }
   }
 
   values.push(options.limit + 1);
   const limitIndex = values.length;
+  const orderBy =
+    order === 'name' ? 'path ASC, id ASC' : order === 'taken' ? 'taken_at ASC, id ASC' : 'taken_at DESC, id DESC';
 
-  const { rows } = await options.pool.query<AssetRow>(
+  const { rows } = await options.pool.query<AssetRow & { path: string }>(
     `SELECT id, deriv_key, w, h, taken_at, camera, thumbhash, mime, path
      FROM asset
      WHERE ${where.join(' AND ')}
-     ORDER BY taken_at DESC, id DESC
+     ORDER BY ${orderBy}
      LIMIT $${limitIndex}`,
     values,
   );
@@ -112,6 +141,6 @@ export async function fetchAssetPage(options: AssetPageOptions): Promise<AssetPa
   const last = pageRows[pageRows.length - 1];
   return {
     assets: pageRows.map((row) => toAssetItem(row, options.thumbBase, options.albumSlug)),
-    nextCursor: hasMore && last ? encodeAssetCursor(last) : null,
+    nextCursor: hasMore && last ? encodeAssetCursor(last, order) : null,
   };
 }

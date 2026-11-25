@@ -2,7 +2,7 @@
   import { base } from '$app/paths';
   import { page } from '$app/state';
   import { goto } from '$app/navigation';
-  import type { AdminAlbumDetail, ClientAlbum, ThumbProgress } from '$lib/api/models';
+  import type { AdminAlbumDetail, AlbumSort, ClientAlbum, ThumbProgress } from '$lib/api/models';
   import type { ClientSummary } from '@gallery/shared';
   import { SLUG_REGEX } from '@gallery/shared';
   import { api, ApiError, isNotFound } from '$lib/api/client';
@@ -25,6 +25,7 @@
   let slug = $state('');
   let allowDownload = $state(true);
   let description = $state('');
+  let sort = $state<AlbumSort>('name');
   let slugState = $state<'idle' | 'checking' | 'free' | 'taken'>('idle');
   let saving = $state(false);
   let error = $state('');
@@ -62,6 +63,7 @@
       slug = response.album.slug;
       allowDownload = response.album.allowDownload;
       description = response.album.description ?? '';
+      sort = response.album.sort ?? 'name';
       tree = [
         {
           id: response.album.id,
@@ -196,6 +198,7 @@
         slug: slug.trim(),
         allowDownload,
         description: description.trim(),
+        sort,
         rules
       });
       await goto(`${base}/admin/clients/${clientId}`);
@@ -318,6 +321,14 @@
         {:else if slugState === 'checking'}
           <span class="muted">Checking…</span>
         {/if}
+        <label>
+          Photo order in folders
+          <select bind:value={sort}>
+            <option value="name">File name (A → Z)</option>
+            <option value="taken">Time taken (oldest first)</option>
+            <option value="taken_desc">Time taken (newest first)</option>
+          </select>
+        </label>
         <label class="download-row">
           Allow downloads
           <input type="checkbox" bind:checked={allowDownload} />

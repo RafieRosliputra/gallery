@@ -81,9 +81,9 @@
     };
   });
 
-  function step(delta: number) {
-    const next = items[index + delta];
-    if (next) onchange(next.id);
+  function step(delta: number, id?: string): void {
+    const next = id ?? items[index + delta]?.id;
+    if (next) onchange(next);
   }
 
   async function copyName() {

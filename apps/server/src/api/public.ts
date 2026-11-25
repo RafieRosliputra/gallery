@@ -257,6 +257,8 @@ export function registerPublicRoutes(app: FastifyInstance, deps: PublicApiDeps):
       limit: parseLimit(recordValue(request.query, 'limit'), 100, 500),
       thumbBase: deps.thumbBase,
       ...(album ? { albumSlug: album.slug } : {}),
+      // Inside an album, a folder lists its photos in the album's chosen order.
+      ...(album && folderKey ? { order: album.sort } : {}),
     });
 
     const body: BucketResponse = { assets: page.assets, nextCursor: page.nextCursor };
