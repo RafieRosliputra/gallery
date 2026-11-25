@@ -21,6 +21,7 @@ export interface ClientAlbumEntry {
   title: string;
   slug: string;
   allowDownload: boolean;
+  description: string;
   count: number;
   rules: { folderId: string; path: string; included: boolean }[];
 }
@@ -51,6 +52,8 @@ export interface ClientSummary {
   id: string;
   name: string;
   slug: string;
+  /** Free text under the client name; URLs/domains become links. */
+  description?: string;
 }
 
 export interface AlbumSummary {
@@ -59,6 +62,8 @@ export interface AlbumSummary {
   title: string;
   slug: string;
   allowDownload: boolean;
+  /** Free text under the album title (falls back to the client's on the page). */
+  description?: string;
 }
 
 /** URLs are absolute paths (or a CDN URL when THUMB_BASE is absolute). */

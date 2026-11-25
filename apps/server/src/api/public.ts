@@ -45,7 +45,7 @@ export function registerPublicRoutes(app: FastifyInstance, deps: PublicApiDeps):
       if (!client) return sendError(reply, 404, 'not_found', NOT_FOUND_MESSAGE);
       const body: ResolveResponse = {
         kind: 'client',
-        client: { id: client.id, name: client.name, slug: client.slug },
+        client: { id: client.id, name: client.name, slug: client.slug, description: client.description },
       };
       return reply.header('Cache-Control', 'no-store').send(body);
     }
@@ -60,8 +60,9 @@ export function registerPublicRoutes(app: FastifyInstance, deps: PublicApiDeps):
           title: album.title,
           slug: album.slug,
           allowDownload: album.allowDownload,
+          description: album.description,
         },
-        client: { id: album.clientId, name: album.clientName, slug: album.clientSlug },
+        client: { id: album.clientId, name: album.clientName, slug: album.clientSlug, description: album.clientDescription },
       };
       return reply.header('Cache-Control', 'no-store').send(body);
     }
@@ -130,7 +131,7 @@ export function registerPublicRoutes(app: FastifyInstance, deps: PublicApiDeps):
     });
 
     const body: ClientResponse = {
-      client: { id: client.id, name: client.name, slug: client.slug },
+      client: { id: client.id, name: client.name, slug: client.slug, description: client.description },
       albums,
     };
     return reply.header('Cache-Control', 'no-store').send(body);
@@ -155,8 +156,9 @@ export function registerPublicRoutes(app: FastifyInstance, deps: PublicApiDeps):
         title: album.title,
         slug: album.slug,
         allowDownload: album.allowDownload,
+        description: album.description,
       },
-      client: { id: album.clientId, name: album.clientName, slug: album.clientSlug },
+      client: { id: album.clientId, name: album.clientName, slug: album.clientSlug, description: album.clientDescription },
       cameras,
       buckets,
       total: buckets.reduce((sum, bucket) => sum + bucket.count, 0),

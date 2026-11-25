@@ -13,6 +13,7 @@
   import JustifiedGrid from '$lib/components/JustifiedGrid.svelte';
   import Logo from '$lib/components/Logo.svelte';
   import Photo from '$lib/components/Photo.svelte';
+  import RichText from '$lib/components/RichText.svelte';
   import MoreMenu from '$lib/components/MoreMenu.svelte';
   import ShareSheet from '$lib/components/ShareSheet.svelte';
   import Viewer from '$lib/components/Viewer.svelte';
@@ -391,7 +392,8 @@
           </a>
         {/if}
         <h1>{album.title}</h1>
-        <span>{formatCount(album.assetCount)} photos{#if album.takenAt} · {formatShortDate(album.takenAt)}{/if}</span>
+        <span>{`${formatCount(album.assetCount)} photos${album.takenAt ? ` · ${formatShortDate(album.takenAt)}` : ''}`}</span>
+        <RichText text={album.description || data.client.description || ''} />
       </div>
 
       {#if view && view.trail.length > 0}

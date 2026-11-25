@@ -554,6 +554,28 @@ describe('public and admin API', () => {
     }
   });
 
+  it('stores client and album descriptions and returns them publicly', async () => {
+    const text = 'Photography service by johorstudio.com';
+    const patched = await app.inject({
+      method: 'PATCH',
+      url: `/s/api/admin/clients/${ids.clientKlien}`,
+      headers: { cookie: ids.adminCookie },
+      payload: { description: text },
+    });
+    expect(patched.json().client.description).toBe(text);
+    const portal = await app.inject({ method: 'GET', url: '/s/api/client/klien-demo' });
+    expect(portal.json().client.description).toBe(text);
+    const album = await app.inject({ method: 'GET', url: `/s/api/album/${ids.albumASlug}` });
+    expect(album.json()).toMatchObject({ album: { description: '' }, client: { description: text } });
+    const tooLong = await app.inject({
+      method: 'PATCH',
+      url: `/s/api/admin/clients/${ids.clientKlien}`,
+      headers: { cookie: ids.adminCookie },
+      payload: { description: 'x'.repeat(1001) },
+    });
+    expect(tooLong.statusCode).toBe(400);
+  });
+
   it('returns lazy folder children with counts', async () => {
     const root = await app.inject({
       method: 'GET',

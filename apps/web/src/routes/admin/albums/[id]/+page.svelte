@@ -24,6 +24,7 @@
   let title = $state('');
   let slug = $state('');
   let allowDownload = $state(true);
+  let description = $state('');
   let slugState = $state<'idle' | 'checking' | 'free' | 'taken'>('idle');
   let saving = $state(false);
   let error = $state('');
@@ -60,12 +61,14 @@
       title = response.album.title;
       slug = response.album.slug;
       allowDownload = response.album.allowDownload;
+      description = response.album.description ?? '';
       tree = [
         {
           id: response.album.id,
           title: response.album.title,
           slug: response.album.slug,
           allowDownload: response.album.allowDownload,
+          description: response.album.description ?? '',
           count: response.album.assetCount,
           rules: response.rules
         }
@@ -187,7 +190,14 @@
     if (slugState === 'taken') return void (error = 'That link is already used.');
     saving = true;
     try {
-      await api.saveAlbum(id, { clientId, title: title.trim(), slug: slug.trim(), allowDownload, rules });
+      await api.saveAlbum(id, {
+        clientId,
+        title: title.trim(),
+        slug: slug.trim(),
+        allowDownload,
+        description: description.trim(),
+        rules
+      });
       await goto(`${base}/admin/clients/${clientId}`);
     } catch (cause) {
       error = cause instanceof ApiError ? cause.message : 'Save failed. Try again.';
@@ -229,6 +239,16 @@
       <label>
         Album name
         <input type="text" bind:value={title} placeholder="e.g. Annual Sports Day 2026" />
+      </label>
+
+      <label>
+        Text under the album name
+        <textarea
+          bind:value={description}
+          rows="3"
+          maxlength="1000"
+          placeholder="Leave empty to use the client's text. Links like johorstudio.com become clickable."
+        ></textarea>
       </label>
 
       <fieldset>
@@ -412,6 +432,16 @@
     font-size: 14px;
     font-weight: 600;
   }
+  textarea {
+    border: 1px solid #c4ccce;
+    border-radius: 6px;
+    padding: 10px 14px;
+    font: inherit;
+    font-size: 15px;
+    font-weight: 400;
+    resize: vertical;
+  }
+
   select,
   .form input[type='text'] {
     height: 46px;

@@ -37,6 +37,8 @@ export interface AlbumCard {
   covers: Asset[];
   cameras: string[];
   takenAt: string | null;
+  /** Text under the album title; empty = use the client's. */
+  description: string;
 }
 
 export interface CameraCount {
@@ -174,6 +176,7 @@ export interface AlbumSaveRequest {
   title: string;
   slug: string;
   allowDownload: boolean;
+  description?: string;
   rules: FolderRule[];
 }
 

@@ -14,6 +14,7 @@
   let albums = $state<ClientAlbum[]>([]);
   let name = $state('');
   let slug = $state('');
+  let description = $state('');
   let loading = $state(true);
   let error = $state('');
   let note = $state('');
@@ -22,7 +23,10 @@
 
   const id = $derived(page.params.id ?? '');
   const totalPhotos = $derived(albums.reduce((sum, album) => sum + album.count, 0));
-  const dirty = $derived(Boolean(client) && (name.trim() !== client?.name || slug.trim() !== client?.slug));
+  const dirty = $derived(
+    Boolean(client) &&
+      (name.trim() !== client?.name || slug.trim() !== client?.slug || description.trim() !== (client?.description ?? ''))
+  );
 
   $effect(() => {
     const clientId = id;
@@ -38,6 +42,7 @@
       albums = response.albums;
       name = response.client.name;
       slug = response.client.slug;
+      description = response.client.description ?? '';
     } catch (cause) {
       error = isNotFound(cause) ? 'Client not found.' : 'Could not load this client.';
     } finally {
@@ -65,7 +70,9 @@
     if (!SLUG_REGEX.test(slug.trim())) return void (error = 'Link must be 3–60 characters: a-z, 0-9 and dashes.');
     savingClient = true;
     try {
-      client = (await api.updateClient(client.id, { name: name.trim(), slug: slug.trim() })).client;
+      client = (
+        await api.updateClient(client.id, { name: name.trim(), slug: slug.trim(), description: description.trim() })
+      ).client;
       flash('Client saved.');
     } catch (cause) {
       error = cause instanceof ApiError ? cause.message : 'Save failed.';
@@ -179,6 +186,16 @@
           >Portal link
           <span class="slug"><span>johorstudio.com/s/</span><input type="text" bind:value={slug} /></span>
         </label>
+        <label
+          >Text under the name
+          <textarea
+            bind:value={description}
+            rows="3"
+            maxlength="1000"
+            placeholder="Photography service by johorstudio.com"
+          ></textarea>
+          <span class="hint">Shown on the portal, and on albums that have no text of their own. johorstudio.com becomes a link.</span>
+        </label>
         <button type="button" class="dark" disabled={!dirty || savingClient} onclick={saveClient}>
           {savingClient ? 'Saving…' : 'Save client'}
         </button>
@@ -282,6 +299,18 @@
     gap: 6px;
     font-size: 14px;
     font-weight: 600;
+  }
+  textarea {
+    border: 1px solid #c4ccce;
+    border-radius: 6px;
+    padding: 10px 12px;
+    font: inherit;
+    font-size: 15px;
+    font-weight: 400;
+    resize: vertical;
+  }
+  .hint {
+    font-weight: 400;
   }
   input[type='text'] {
     height: 44px;

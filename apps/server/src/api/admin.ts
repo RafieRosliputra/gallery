@@ -31,6 +31,12 @@ function validName(value: unknown): value is string {
   return typeof value === 'string' && value.trim().length >= 1 && value.trim().length <= 120;
 }
 
+const DESCRIPTION_MESSAGE = 'Description must be at most 1000 characters.';
+
+function validDescription(value: unknown): value is string {
+  return typeof value === 'string' && value.trim().length <= 1000;
+}
+
 function validSlug(value: unknown): value is string {
   return typeof value === 'string' && SLUG_REGEX.test(value);
 }
@@ -46,6 +52,7 @@ function albumJson(row: AlbumAdminRow, thumbBase: string): Record<string, unknow
     title: row.title,
     slug: row.slug,
     allowDownload: row.allow_download,
+    description: row.description,
     clientSlug: row.client_slug,
     clientName: row.client_name,
     folderCount: row.folder_count,
@@ -97,12 +104,18 @@ export function registerAdminRoutes(app: FastifyInstance, deps: AdminApiDeps): v
   app.get('/s/api/admin/clients', async (request, reply) => {
     const session = await guard(request, reply);
     if (!session) return reply;
-    const { rows } = await deps.pool.query<{ id: string; name: string; slug: string; album_count: number }>(
-      `SELECT c.id, c.name, c.slug,
+    const { rows } = await deps.pool.query<{ id: string; name: string; slug: string; description: string; album_count: number }>(
+      `SELECT c.id, c.name, c.slug, c.description,
               (SELECT count(*) FROM album a WHERE a.client_id = c.id)::int AS album_count
        FROM client c ORDER BY c.created_at DESC, c.id DESC`,
     );
-    return reply.send({ clients: rows.map((row) => ({ id: row.id, name: row.name, slug: row.slug, albumCount: row.album_count })) });
+    return reply.send({ clients: rows.map((row) => ({
+        id: row.id,
+        name: row.name,
+        slug: row.slug,
+        description: row.description,
+        albumCount: row.album_count,
+      })) });
   });
 
   app.post('/s/api/admin/clients', async (request, reply) => {
@@ -116,7 +129,7 @@ export function registerAdminRoutes(app: FastifyInstance, deps: AdminApiDeps): v
 
     try {
       const { rows } = await deps.pool.query<{ id: string; name: string; slug: string }>(
-        'INSERT INTO client (name, slug) VALUES ($1, $2) RETURNING id, name, slug',
+        'INSERT INTO client (name, slug) VALUES ($1, $2) RETURNING id, name, slug, description',
         [name.trim(), slug],
       );
       const row = rows[0];
@@ -138,17 +151,26 @@ export function registerAdminRoutes(app: FastifyInstance, deps: AdminApiDeps): v
 
     const name = body['name'];
     const slug = body['slug'];
-    if (name === undefined && slug === undefined) {
+    const description = body['description'];
+    if (name === undefined && slug === undefined && description === undefined) {
       return sendError(reply, 400, 'bad_request', 'Nothing to change.');
     }
     if (name !== undefined && !validName(name)) return sendError(reply, 400, 'bad_name', NAME_MESSAGE);
     if (slug !== undefined && !validSlug(slug)) return sendError(reply, 400, 'bad_slug', SLUG_MESSAGE);
+    if (description !== undefined && !validDescription(description)) {
+      return sendError(reply, 400, 'bad_description', DESCRIPTION_MESSAGE);
+    }
 
     try {
-      const { rows } = await deps.pool.query<{ id: string; name: string; slug: string }>(
-        `UPDATE client SET name = COALESCE($2, name), slug = COALESCE($3, slug)
-         WHERE id = $1 RETURNING id, name, slug`,
-        [id, name === undefined ? null : (name as string).trim(), slug === undefined ? null : slug],
+      const { rows } = await deps.pool.query<{ id: string; name: string; slug: string; description: string }>(
+        `UPDATE client SET name = COALESCE($2, name), slug = COALESCE($3, slug), description = COALESCE($4, description)
+         WHERE id = $1 RETURNING id, name, slug, description`,
+        [
+          id,
+          name === undefined ? null : (name as string).trim(),
+          slug === undefined ? null : slug,
+          description === undefined ? null : (description as string).trim(),
+        ],
       );
       const row = rows[0];
       if (!row) return sendError(reply, 404, 'not_found', NOT_FOUND_MESSAGE);
@@ -182,10 +204,11 @@ export function registerAdminRoutes(app: FastifyInstance, deps: AdminApiDeps): v
       title: string;
       slug: string;
       allow_download: boolean;
+      description: string;
       count: number;
       rules: { folderId: string; path: string; included: boolean }[];
     }>(
-      `SELECT a.id::text AS id, a.title, a.slug, a.allow_download,
+      `SELECT a.id::text AS id, a.title, a.slug, a.allow_download, a.description,
               (SELECT count(*) FROM asset x
                WHERE x.deleted_at IS NULL AND x.folder_id IN (SELECT fid FROM album_scope(a.id)))::int AS count,
               COALESCE((SELECT json_agg(json_build_object('folderId', af.folder_id::text, 'path', f.path, 'included', af.included)
@@ -203,6 +226,7 @@ export function registerAdminRoutes(app: FastifyInstance, deps: AdminApiDeps): v
         title: row.title,
         slug: row.slug,
         allowDownload: row.allow_download,
+        description: row.description,
         count: row.count,
         rules: row.rules,
       })),
@@ -247,6 +271,7 @@ export function registerAdminRoutes(app: FastifyInstance, deps: AdminApiDeps): v
             title,
             slug,
             allowDownload: true,
+            description: '',
             count: 0,
             rules: [{ folderId, path: folder.path, included: true }],
           },
@@ -305,7 +330,7 @@ export function registerAdminRoutes(app: FastifyInstance, deps: AdminApiDeps): v
          WHERE rn <= 3
          GROUP BY album_id
        )
-       SELECT a.id, a.client_id, a.title, a.slug, a.allow_download,
+       SELECT a.id, a.client_id, a.title, a.slug, a.allow_download, a.description,
               c.slug AS client_slug, c.name AS client_name,
               (SELECT count(*) FROM album_folder af WHERE af.album_id = a.id AND af.included)::int AS folder_count,
               COALESCE(st.asset_count, 0) AS asset_count,
@@ -346,7 +371,7 @@ export function registerAdminRoutes(app: FastifyInstance, deps: AdminApiDeps): v
       const { rows } = await deps.pool.query<AlbumAdminRow>(
         `INSERT INTO album (client_id, title, slug, allow_download)
          VALUES ($1, $2, $3, COALESCE($4, true))
-         RETURNING id, client_id, title, slug, allow_download,
+         RETURNING id, client_id, title, slug, allow_download, description,
                    (SELECT slug FROM client WHERE id = $1) AS client_slug,
                    (SELECT name FROM client WHERE id = $1) AS client_name,
                    0::int AS folder_count,
@@ -376,7 +401,17 @@ export function registerAdminRoutes(app: FastifyInstance, deps: AdminApiDeps): v
     const title = body['title'];
     const slug = body['slug'];
     const allowDownload = body['allow_download'] ?? body['allowDownload'];
-    if (clientIdRaw === undefined && title === undefined && slug === undefined && allowDownload === undefined) {
+    const description = body['description'];
+    if (description !== undefined && !validDescription(description)) {
+      return sendError(reply, 400, 'bad_description', DESCRIPTION_MESSAGE);
+    }
+    if (
+      clientIdRaw === undefined &&
+      title === undefined &&
+      slug === undefined &&
+      allowDownload === undefined &&
+      description === undefined
+    ) {
       return sendError(reply, 400, 'bad_request', 'Nothing to change.');
     }
     let clientId: string | null = null;
@@ -401,9 +436,10 @@ export function registerAdminRoutes(app: FastifyInstance, deps: AdminApiDeps): v
         `UPDATE album SET client_id = COALESCE($2, client_id),
                           title = COALESCE($3, title),
                           slug = COALESCE($4, slug),
-                          allow_download = COALESCE($5, allow_download)
+                          allow_download = COALESCE($5, allow_download),
+                          description = COALESCE($6, description)
          WHERE id = $1
-         RETURNING id, client_id, title, slug, allow_download,
+         RETURNING id, client_id, title, slug, allow_download, description,
                    (SELECT slug FROM client WHERE id = album.client_id) AS client_slug,
                    (SELECT name FROM client WHERE id = album.client_id) AS client_name,
                    (SELECT count(*) FROM album_folder af WHERE af.album_id = album.id AND af.included)::int AS folder_count,
@@ -416,6 +452,7 @@ export function registerAdminRoutes(app: FastifyInstance, deps: AdminApiDeps): v
           title === undefined ? null : (title as string).trim(),
           slug === undefined ? null : slug,
           allowDownload === undefined ? null : allowDownload,
+          description === undefined ? null : (description as string).trim(),
         ],
       );
       const row = rows[0];
@@ -719,6 +756,7 @@ interface AlbumAdminRow {
   title: string;
   slug: string;
   allow_download: boolean;
+  description: string;
   client_slug: string;
   client_name: string;
   folder_count: number;

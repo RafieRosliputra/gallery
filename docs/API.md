@@ -350,3 +350,8 @@ Conflicts return `409 {error:"slug_conflict"}` with a BM message.
 - Hidden subfolders are exclude rules of that album (`PUT /s/api/admin/albums/:id/folders`).
 - Admin UI: Clients → client page ticks folders (each tick = album) and switches subfolders Visible/Hidden; album page edits name, link, downloads, hidden subfolders.
 - UI and API messages are English.
+
+## Descriptions and WhatsApp (migration 008)
+
+- `client.description` / `album.description` (≤ 1000 chars), set with `PATCH /s/api/admin/clients/:id` and `PATCH /s/api/admin/albums/:id` (`description`). Public client/album/resolve responses carry them. The album page shows the album's text, else the client's. Plain text only; URLs and bare domains (johorstudio.com) are linked by `RichText.svelte`.
+- `WhatsAppButton.svelte`: fixed bottom-right on every public page (`/s/<slug>`), image `static/wa-rafi.webp`, opens `wa.me/60127983745?text=Hi Rafi`.
