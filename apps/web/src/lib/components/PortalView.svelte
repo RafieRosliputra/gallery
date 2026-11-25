@@ -1,4 +1,5 @@
 <script lang="ts">
+  import RichText from './RichText.svelte';
   import { base } from '$app/paths';
   import { goto } from '$app/navigation';
   import type { AlbumCard, ClientPortalResponse } from '$lib/api/models';
@@ -64,6 +65,7 @@
     <div class="intro">
       <h1>{data.client.name}</h1>
       <span class="meta">{formatCount(data.albumCount)} {data.albumCount === 1 ? 'album' : 'albums'} · {formatCount(data.assetCount)} photos</span>
+      <RichText text={data.client.description ?? ''} />
     </div>
 
     <div class="grid">

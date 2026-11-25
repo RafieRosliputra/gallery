@@ -5,6 +5,7 @@
   import AlbumView from '$lib/components/AlbumView.svelte';
   import PortalView from '$lib/components/PortalView.svelte';
   import Logo from '$lib/components/Logo.svelte';
+  import WhatsAppButton from '$lib/components/WhatsAppButton.svelte';
 
   let mode = $state<'loading' | 'client' | 'album' | 'missing' | 'error'>('loading');
   let client = $state<ClientPortalResponse | null>(null);
@@ -76,6 +77,8 @@
     <p>Loading gallery…</p>
   </div>
 {/if}
+
+{#if mode !== 'loading'}<WhatsAppButton />{/if}
 
 <style>
   .notfound {

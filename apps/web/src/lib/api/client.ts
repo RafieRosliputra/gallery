@@ -141,6 +141,7 @@ function toAlbumCard(
     clientName: wire.clientName ?? client?.name ?? '',
     clientSlug: wire.clientSlug ?? client?.slug ?? '',
     allowDownload: wire.allowDownload,
+    description: wire.description ?? '',
     assetCount: wire.count || detail?.album.assetCount || 0,
     folderCount: wire.folderCount ?? detail?.album.folderCount ?? 0,
     coverAssetIds: covers.map((cover) => cover.id),
@@ -178,6 +179,7 @@ interface AdminAlbumWire {
   title: string;
   slug: string;
   allowDownload: boolean;
+  description?: string;
   clientSlug: string;
   clientName: string;
   folderCount: number;
@@ -198,6 +200,7 @@ function toAdminAlbum(wire: AdminAlbumWire, detail: AlbumResponse | null): Admin
     clientName: wire.clientName,
     clientSlug: wire.clientSlug,
     allowDownload: wire.allowDownload,
+    description: wire.description ?? '',
     assetCount: wire.count || detail?.album.assetCount || 0,
     folderCount: wire.folderCount,
     coverAssetIds: covers.map((cover) => cover.id),
@@ -241,6 +244,7 @@ async function albumDetail(slug: string, options: { cover?: boolean } = {}): Pro
     clientName: wire.client.name,
     clientSlug: wire.client.slug,
     allowDownload: wire.album.allowDownload,
+    description: wire.album.description ?? '',
     assetCount: wire.total,
     folderCount: 0,
     coverAssetIds: covers.map((cover) => cover.id),
@@ -435,13 +439,16 @@ export const api = {
 
   async updateAlbumSettings(
     albumId: string,
-    body: { title?: string; slug?: string; allowDownload?: boolean }
+    body: { title?: string; slug?: string; allowDownload?: boolean; description?: string }
   ): Promise<void> {
     await request(`/admin/albums/${encodeURIComponent(albumId)}`, { method: 'PATCH', body: JSON.stringify(body) });
     albumDetailCache.clear();
   },
 
-  updateClient(id: string, body: { name?: string; slug?: string }): Promise<{ client: ClientSummary }> {
+  updateClient(
+    id: string,
+    body: { name?: string; slug?: string; description?: string }
+  ): Promise<{ client: ClientSummary }> {
     return request<{ client: ClientSummary }>(`/admin/clients/${encodeURIComponent(id)}`, {
       method: 'PATCH',
       body: JSON.stringify(body)
@@ -503,7 +510,8 @@ export const api = {
           clientId: body.clientId,
           title: body.title,
           slug: body.slug,
-          allowDownload: body.allowDownload
+          allowDownload: body.allowDownload,
+          ...(body.description !== undefined ? { description: body.description } : {})
         })
       }
     );
