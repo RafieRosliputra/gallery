@@ -101,8 +101,12 @@ export interface AdminStatusView extends AdminStatusResponse {
   log?: { at: string; message: string }[];
 }
 
+export type AlbumSort = 'name' | 'taken' | 'taken_desc';
+
 export interface AdminAlbum extends AlbumCard {
   createdAt?: string;
+  /** Photo order inside folders. */
+  sort?: AlbumSort;
 }
 
 export interface AdminClient extends ClientSummary {
@@ -179,6 +183,7 @@ export interface AlbumSaveRequest {
   slug: string;
   allowDownload: boolean;
   description?: string;
+  sort?: AlbumSort;
   rules: FolderRule[];
 }
 

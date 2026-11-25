@@ -584,6 +584,50 @@ describe('public and admin API', () => {
     expect(bucket.json().assets.map((asset: { name: string }) => asset.name).sort()).toEqual(['a1.jpg', 'a2.jpg']);
   });
 
+  it('orders folder photos by file name by default and by time when the album says so', async () => {
+    const extra = await pool.query<{ id: string }>(
+      `INSERT INTO asset (path, folder_id, size, mtime, deriv_key, taken_at, mime, thumb_ok)
+       VALUES ('Klien Demo/Album A/0-first.jpg', $1, 10, now(), 'f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0', '2024-06-30T10:00:00Z', 'image/jpeg', true)
+       RETURNING id::text AS id`,
+      [ids.albumA],
+    );
+    const extraId = extra.rows[0]?.id;
+    const names = async () =>
+      (await app.inject({ method: 'GET', url: `/s/api/bucket/f:${ids.albumA}?album=${ids.albumASlug}` }))
+        .json()
+        .assets.map((asset: { name: string }) => asset.name);
+    expect(await names()).toEqual(['0-first.jpg', 'a1.jpg']);
+
+    const albumId = (await pool.query<{ id: string }>('SELECT id::text AS id FROM album WHERE slug = $1', [ids.albumASlug]))
+      .rows[0]?.id;
+    for (const [sort, expected] of [
+      ['taken', ['a1.jpg', '0-first.jpg']],
+      ['taken_desc', ['0-first.jpg', 'a1.jpg']],
+    ] as const) {
+      const patched = await app.inject({
+        method: 'PATCH',
+        url: `/s/api/admin/albums/${albumId}`,
+        headers: { cookie: ids.adminCookie },
+        payload: { sort },
+      });
+      expect(patched.json().album.sort).toBe(sort);
+      expect(await names()).toEqual(expected);
+    }
+
+    // Paging keeps the order across pages.
+    await app.inject({ method: 'PATCH', url: `/s/api/admin/albums/${albumId}`, headers: { cookie: ids.adminCookie }, payload: { sort: 'name' } });
+    const first = await app.inject({ method: 'GET', url: `/s/api/bucket/f:${ids.albumA}?album=${ids.albumASlug}&limit=1` });
+    const second = await app.inject({
+      method: 'GET',
+      url: `/s/api/bucket/f:${ids.albumA}?album=${ids.albumASlug}&limit=1&cursor=${first.json().nextCursor}`,
+    });
+    expect([first.json().assets[0].name, second.json().assets[0].name]).toEqual(['0-first.jpg', 'a1.jpg']);
+
+    const bad = await app.inject({ method: 'PATCH', url: `/s/api/admin/albums/${albumId}`, headers: { cookie: ids.adminCookie }, payload: { sort: 'random' } });
+    expect(bad.statusCode).toBe(400);
+    await pool.query('DELETE FROM asset WHERE id = $1', [extraId]);
+  });
+
   it('returns lazy folder children with counts', async () => {
     const root = await app.inject({
       method: 'GET',

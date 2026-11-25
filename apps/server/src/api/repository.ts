@@ -1,5 +1,6 @@
 import type { Pool } from 'pg';
 import type { AssetRow } from './rows.js';
+import type { AssetOrder } from './assets-query.js';
 
 export interface ClientRecord {
   id: string;
@@ -15,6 +16,8 @@ export interface AlbumRecord {
   slug: string;
   allowDownload: boolean;
   description: string;
+  /** Photo order inside folders. */
+  sort: AssetOrder;
   clientSlug: string;
   clientName: string;
   clientDescription: string;
@@ -34,6 +37,7 @@ interface AlbumRow {
   slug: string;
   allow_download: boolean;
   description: string;
+  sort: AssetOrder;
   client_slug: string;
   client_name: string;
   client_description: string;
@@ -51,6 +55,7 @@ function toAlbum(row: AlbumRow): AlbumRecord {
     slug: row.slug,
     allowDownload: row.allow_download,
     description: row.description,
+    sort: row.sort,
     clientSlug: row.client_slug,
     clientName: row.client_name,
     clientDescription: row.client_description,
@@ -71,7 +76,7 @@ export async function findClientById(pool: Pool, id: string): Promise<ClientReco
 
 export async function findAlbumBySlug(pool: Pool, slug: string): Promise<AlbumRecord | null> {
   const { rows } = await pool.query<AlbumRow>(
-    `SELECT a.id, a.client_id, a.title, a.slug, a.allow_download, a.description,
+    `SELECT a.id, a.client_id, a.title, a.slug, a.allow_download, a.description, a.sort,
             c.slug AS client_slug, c.name AS client_name, c.description AS client_description
      FROM album a JOIN client c ON c.id = a.client_id
      WHERE a.slug = $1`,
@@ -83,7 +88,7 @@ export async function findAlbumBySlug(pool: Pool, slug: string): Promise<AlbumRe
 
 export async function findAlbumById(pool: Pool, id: string): Promise<AlbumRecord | null> {
   const { rows } = await pool.query<AlbumRow>(
-    `SELECT a.id, a.client_id, a.title, a.slug, a.allow_download, a.description,
+    `SELECT a.id, a.client_id, a.title, a.slug, a.allow_download, a.description, a.sort,
             c.slug AS client_slug, c.name AS client_name, c.description AS client_description
      FROM album a JOIN client c ON c.id = a.client_id
      WHERE a.id = $1`,

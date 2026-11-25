@@ -51,9 +51,9 @@
     window.setTimeout(() => (copied = ''), 2000);
   }
 
-  function step(delta: number): void {
-    const next = items[index + delta];
-    if (next) onchange(next.id);
+  function step(delta: number, id?: string): void {
+    const next = id ?? items[index + delta]?.id;
+    if (next) onchange(next);
   }
 
   onMount(() => {

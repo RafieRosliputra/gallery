@@ -181,6 +181,7 @@ interface AdminAlbumWire {
   slug: string;
   allowDownload: boolean;
   description?: string;
+  sort?: 'name' | 'taken' | 'taken_desc';
   clientSlug: string;
   clientName: string;
   folderCount: number;
@@ -200,6 +201,7 @@ function toAdminAlbum(wire: AdminAlbumWire, detail: AlbumResponse | null): Admin
     clientId: wire.clientId,
     clientName: wire.clientName,
     clientSlug: wire.clientSlug,
+    ...(wire.sort ? { sort: wire.sort } : {}),
     allowDownload: wire.allowDownload,
     description: wire.description ?? '',
     assetCount: wire.count || detail?.album.assetCount || 0,
@@ -512,7 +514,8 @@ export const api = {
           title: body.title,
           slug: body.slug,
           allowDownload: body.allowDownload,
-          ...(body.description !== undefined ? { description: body.description } : {})
+          ...(body.description !== undefined ? { description: body.description } : {}),
+          ...(body.sort ? { sort: body.sort } : {})
         })
       }
     );
