@@ -99,7 +99,7 @@ export async function fetchAssetPage(options: AssetPageOptions): Promise<AssetPa
   const limitIndex = values.length;
 
   const { rows } = await options.pool.query<AssetRow>(
-    `SELECT id, deriv_key, w, h, taken_at, camera, thumbhash, mime
+    `SELECT id, deriv_key, w, h, taken_at, camera, thumbhash, mime, path
      FROM asset
      WHERE ${where.join(' AND ')}
      ORDER BY taken_at DESC, id DESC

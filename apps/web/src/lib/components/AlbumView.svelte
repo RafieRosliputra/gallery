@@ -4,6 +4,7 @@
   import { goto } from '$app/navigation';
   import type { AlbumFolderView, AlbumResponse, Asset, BucketRef } from '$lib/api/models';
   import { api, downloadBlob } from '$lib/api/client';
+  import { copyText } from '$lib/clipboard';
   import { formatCount, formatShortDate } from '$lib/format';
   import { getFavourites } from '$lib/stores/favourites';
   import { openedFromClient } from '$lib/routing/back';
@@ -281,6 +282,17 @@
     }
   }
 
+  async function copyFavNames() {
+    const names = favAssets.map((asset) => asset.name).filter((name): name is string => Boolean(name));
+    if (names.length === 0) {
+      toast = 'File names are still loading.';
+    } else {
+      const ok = await copyText(names.join('\n'));
+      toast = ok ? `Copied ${names.length} file ${names.length === 1 ? 'name' : 'names'}` : 'Could not copy';
+    }
+    window.setTimeout(() => (toast = ''), 3000);
+  }
+
   async function forceThumbs() {
     try {
       const result = await api.forceAlbumThumbs(album.id);
@@ -333,6 +345,9 @@
 
       <div class="actions">
         {#if favMode}
+          {#if favIds.length > 0}
+            <IconButton label="Copy file names" name="copy" size={21} hit={44} onclick={copyFavNames} />
+          {/if}
           {#if album.allowDownload && favIds.length > 0}
             <IconButton label={`Download ${favIds.length} favourite (ZIP)`} name="download" size={23} hit={44} onclick={downloadFavourites} />
           {/if}
